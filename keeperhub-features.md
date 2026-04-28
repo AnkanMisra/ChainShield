@@ -1,6 +1,6 @@
 # KeeperHub Features
 
-Based on the official KeeperHub docs: <https://docs.keeperhub.com/>
+Based on the official KeeperHub docs: [https://docs.keeperhub.com/](https://docs.keeperhub.com/)
 
 ## Core Platform
 
