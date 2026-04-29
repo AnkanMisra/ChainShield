@@ -12,7 +12,7 @@ const selectorSchema = z
 
 const hexSchema = z
   .string()
-  .regex(/^0x[a-fA-F0-9]*$/, "must be 0x-prefixed hex")
+  .regex(/^0x(?:[a-fA-F0-9]{2})*$/, "must be 0x-prefixed byte-aligned hex")
   .transform((v) => v as `0x${string}`);
 
 export const policyRulesSchema = z.object({

@@ -12,10 +12,30 @@ function weiToEthFloat(wei: bigint): number {
   return Number(whole) + Number(frac) / Number(WEI_PER_ETH);
 }
 
+function decimalStringOf(value: number): string {
+  const str = value.toString();
+  if (!str.toLowerCase().includes("e")) return str;
+
+  const [mantissa = "0", exponentPart = "0"] = str.toLowerCase().split("e");
+  const exponent = Number(exponentPart);
+  const digits = mantissa.replace(".", "");
+  const decimalPlaces = mantissa.includes(".") ? mantissa.length - mantissa.indexOf(".") - 1 : 0;
+  const decimalIndex = digits.length - decimalPlaces + exponent;
+
+  if (decimalIndex <= 0) return `0.${"0".repeat(Math.abs(decimalIndex))}${digits}`;
+  if (decimalIndex >= digits.length) return `${digits}${"0".repeat(decimalIndex - digits.length)}`;
+  return `${digits.slice(0, decimalIndex)}.${digits.slice(decimalIndex)}`;
+}
+
 function ethToWei(eth: number): bigint {
-  const [whole, frac = ""] = eth.toString().split(".");
+  const [whole, frac = ""] = decimalStringOf(eth).split(".");
   const padded = (frac + "0".repeat(18)).slice(0, 18);
   return BigInt(whole ?? "0") * WEI_PER_ETH + BigInt(padded || "0");
+}
+
+async function persistDecision(store: Store, decision: Decision): Promise<Decision> {
+  await store.appendDecision(decision);
+  return decision;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -52,6 +72,17 @@ export class DecisionEngine {
       riskScore = Math.max(riskScore, 95);
       rulesMatched.push("forbiddenSelectors");
       reasons.push(`Selector ${selector} is on the forbidden list.`);
+
+      return persistDecision(this.store, {
+        id: this.idGen(),
+        intent,
+        verdict,
+        riskScore,
+        rulesMatched,
+        reasons,
+        policyId: policy.id,
+        timestamp: this.now(),
+      });
     }
 
     const valueWei = BigInt(intent.value);
@@ -132,7 +163,6 @@ export class DecisionEngine {
       timestamp: this.now(),
     };
 
-    await this.store.appendDecision(decision);
-    return decision;
+    return persistDecision(this.store, decision);
   }
 }

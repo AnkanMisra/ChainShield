@@ -77,6 +77,13 @@ export function buildApp(deps: AppDeps = {}): FastifyInstance {
       reply.status(404);
       return { error: "PolicyNotFound" };
     }
+    if (policy.owner.toLowerCase() !== body.intent.from.toLowerCase()) {
+      reply.status(400);
+      return {
+        error: "PolicyOwnerMismatch",
+        message: "Policy owner must match intent.from.",
+      };
+    }
     return engine.evaluate(body.intent, policy);
   });
 

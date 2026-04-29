@@ -65,6 +65,28 @@ describe("DecisionEngine — Phase 1 deterministic rules", () => {
     expect(decision.rulesMatched).toContain("forbiddenSelectors");
   });
 
+  it("short-circuits after a forbidden selector match", async () => {
+    const { engine } = makeEngine();
+    const policy = makePolicy({
+      rules: {
+        forbiddenSelectors: ["0x095ea7b3"],
+        maxTransferEth: 1,
+        allowedDestinations: [COLD_VAULT],
+      },
+    });
+    const intent = makeIntent({
+      to: TOKEN,
+      value: "2000000000000000000",
+      data: approveCalldata(ATTACKER, 2n ** 256n - 1n),
+    });
+
+    const decision = await engine.evaluate(intent, policy);
+
+    expect(decision.verdict).toBe("BLOCK");
+    expect(decision.riskScore).toBe(95);
+    expect(decision.rulesMatched).toEqual(["forbiddenSelectors"]);
+  });
+
   it("BLOCKs an ERC-20 approval that exceeds approvalCapByToken", async () => {
     const { engine } = makeEngine();
     const cap = 1_000n * 10n ** 18n;
@@ -102,6 +124,18 @@ describe("DecisionEngine — Phase 1 deterministic rules", () => {
 
     expect(decision.verdict).toBe("BLOCK");
     expect(decision.rulesMatched).toContain("maxDailyOutflowEth");
+  });
+
+  it("handles ETH caps that stringify with scientific notation", async () => {
+    const { engine } = makeEngine();
+    const policy = makePolicy({ rules: { maxTransferEth: 1e-18 } });
+
+    const allowed = await engine.evaluate(makeIntent({ value: "1" }), policy);
+    const blocked = await engine.evaluate(makeIntent({ value: "2" }), policy);
+
+    expect(allowed.verdict).toBe("ALLOW");
+    expect(blocked.verdict).toBe("BLOCK");
+    expect(blocked.rulesMatched).toContain("maxTransferEth");
   });
 
   it("persists each decision so the timeline can be queried", async () => {
