@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
 import { ZodError } from "zod";
 import type { Store } from "../memory/store.js";
@@ -5,6 +6,8 @@ import { InMemoryStore } from "../memory/memoryStore.js";
 import { DecisionEngine } from "../core/engine.js";
 import { PolicyService } from "../core/policyService.js";
 import { evaluateRequestSchema, policyInputSchema } from "../core/schemas.js";
+
+const UI_PATH = join(import.meta.dir, "..", "..", "public", "index.html");
 
 export interface AppDeps {
   store?: Store;
@@ -29,6 +32,11 @@ export function buildApp(deps: AppDeps = {}): FastifyInstance {
   });
 
   app.get("/health", async () => ({ status: "ok" }));
+
+  app.get("/", async (_req, reply) => {
+    const html = await Bun.file(UI_PATH).text();
+    reply.type("text/html").send(html);
+  });
 
   app.post("/policies", async (req, reply) => {
     const policy = await policyService.create(req.body);

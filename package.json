@@ -9,12 +9,15 @@
     "bun": ">=1.1.0"
   },
   "scripts": {
-    "build": "bun build ./src/risk-gate/server.ts --outdir ./dist --target bun",
-    "typecheck": "tsc --noEmit",
     "dev": "bun run --watch src/risk-gate/server.ts",
-    "demo": "bun run src/cli/demo.ts",
+    "start": "bun run src/risk-gate/server.ts",
+    "build": "bun build ./src/risk-gate/server.ts --outdir ./dist --target bun --minify",
+    "start:bundle": "bun run dist/server.js",
+    "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "test:watch": "bun test --watch"
+    "test:watch": "bun test --watch",
+    "test:coverage": "bun test --coverage",
+    "clean": "rm -rf dist coverage .tsbuildinfo"
   },
   "dependencies": {
     "ethers": "^6.13.4",

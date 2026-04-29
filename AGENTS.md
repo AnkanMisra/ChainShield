@@ -1,0 +1,122 @@
+# AGENTS.md
+
+Project conventions and pointers for AI coding agents (and humans) working in this repo.
+
+## What this project is
+
+ChainShield Agent: a policy-bound risk gate for onchain treasuries and wallets. The server accepts a transaction intent, evaluates it against deterministic rules plus (eventually) simulation and LLM reflection, and returns one of three verdicts: `ALLOW`, `REQUIRE_HUMAN_CONFIRMATION`, or `BLOCK`. Every decision is appended to an incident timeline.
+
+Built for ETHGlobal OpenAgents 2026. Sponsor integrations planned: 0G (storage + inference), KeeperHub (remediation playbooks), Gensyn AXL (multi-agent mesh).
+
+## Tech stack
+
+- Runtime: Bun 1.3 (single tool for install, run, test, build)
+- Language: TypeScript with strict mode
+- HTTP: Fastify 5
+- Validation: Zod
+- Onchain: ethers v6 (currently a dependency; not yet wired up)
+- Tests: `bun:test` (Jest-compatible API)
+- Containerization: Docker (multi-stage on `oven/bun:1.3-alpine`)
+
+## Run, test, build
+
+```sh
+bun install                # install deps from bun.lock
+bun run dev                # start risk-gate server with watch on 127.0.0.1:8787
+bun run start              # production-style boot (no watch)
+bun test                   # 13 specs, ~150ms
+bun run test:coverage      # v8 coverage report
+bun run typecheck          # tsc --noEmit, must exit 0
+bun run build              # bundle to ./dist/server.js
+bun run start:bundle       # run the bundled output
+bun run clean              # remove dist/, coverage/, .tsbuildinfo
+```
+
+Docker path:
+
+```sh
+docker compose up --build  # builds and runs on host port 8787
+```
+
+## Where things live
+
+- `src/core/` — types, Zod schemas, policy service, decision engine, EVM selector helpers
+- `src/memory/` — `Store` interface and the in-memory implementation (the seam where 0G Storage will plug in)
+- `src/risk-gate/` — Fastify app and server entrypoint
+- `tests/` — `bun:test` specs covering engine rules, policy service, and the API
+- `public/index.html` — single-page browser UI served at `/`
+- `docs/` — architecture, product story, sponsor research
+- `.claude/skills/` — reusable agent skills for repeated tasks in this project
+
+Empty Phase 2 dirs are not pre-created. Add them when the code arrives.
+
+## Conventions
+
+### Code style
+
+- Strict TypeScript. `noUncheckedIndexedAccess` is on, so always handle `undefined` from `arr[i]` and `Map.get`.
+- ESM only. Imports of local files use the `.js` extension (Node ESM convention; Bun and `tsc` both honor it).
+- No default exports for app code.
+- Prefer interfaces for public shapes, type aliases for unions and primitives.
+- Validate at the boundary (HTTP body, env, untrusted JSON) with Zod, then trust the typed value internally.
+- Keep error messages user-facing; the Fastify error handler already formats Zod errors as 400s.
+
+### Tests
+
+- Co-located test data in `tests/helpers.ts` (canonical addresses, intent and policy factories).
+- One feature per `it()`. Assertions on the verdict, the matched rules, and the risk score together; do not assert just one of them.
+- Inject `now()` and `idGen()` into `DecisionEngine` and `PolicyService` for deterministic timestamps and ids.
+- Do not mock the in-memory store; use a fresh `InMemoryStore` per test.
+
+### Commits
+
+- One-line subjects when possible. Imperative mood (`add`, `fix`, `refactor`, never `added`/`adding`).
+- Lowercase first letter unless it is a proper noun.
+- Group related changes into a single commit; split unrelated work.
+- Never amend a pushed commit unless the user asks for it.
+
+### Branches
+
+- Feature branches: `feature/<short-name>`.
+- Default base for PRs: `sponsor-features`.
+
+## Decision-engine contract (do not break)
+
+The engine is the heart of the product. Keep these invariants when changing it:
+
+1. The verdict ladder is `BLOCK > REQUIRE_HUMAN_CONFIRMATION > ALLOW`. A rule may only escalate, never de-escalate.
+2. `forbiddenSelectors` is checked before any other rule and short-circuits to `BLOCK` with risk 95.
+3. `maxTransferEth` and `approvalCapByToken` produce `BLOCK` with risk >= 90.
+4. `maxDailyOutflowEth` reads the timeline; only non-blocked decisions count toward the rolling sum.
+5. `allowedDestinations` downgrades `ALLOW` to `REQUIRE_HUMAN_CONFIRMATION` (risk 60). It does not upgrade to `BLOCK` on its own.
+6. Every decision is persisted via `Store.appendDecision` exactly once.
+7. `reasons[]` is human-readable English; `rulesMatched[]` is machine-readable rule keys. Keep them in sync.
+
+## Things to avoid
+
+- Do not add a new sponsor adapter without an interface in front of it. The `Store` interface is the template: keep concrete clients (e.g. `ZeroGStore`, `KeeperHubRunner`) substitutable.
+- Do not bake API keys or RPC URLs into source. Read them from `process.env` (see `.env.example`).
+- Do not add backwards-compatibility shims. The repo is pre-release; rename freely.
+- Do not write to disk from the server process. State belongs in the `Store` (today in-memory, tomorrow 0G).
+- Do not introduce a UI build step. The browser UI is a single static HTML file served by Fastify; keep it that way until a real framework is justified.
+- Do not use emojis anywhere in source, tests, docs, commit messages, PR descriptions, or UI text.
+
+## Skills available
+
+Project-local Claude Code skills live in `.claude/skills/`. Invoke them via the `Skill` tool when a task matches their description.
+
+- `selector-decode`: when you see a 4-byte calldata selector (`0x` + 8 hex) and need to know which function it identifies, or you need to author a forbidden-selector list.
+- `policy-author`: when you are designing a new `Policy` for a wallet or treasury and need a structured approach.
+- `erc20-attack-patterns`: when reasoning about token approvals, transfers, or related ERC-20 attack vectors.
+- `sponsor-wiring`: when starting Phase 2 and adding the 0G, KeeperHub, or Gensyn AXL adapter modules.
+
+Read the corresponding `SKILL.md` before acting.
+
+## Environment
+
+`.env.example` lists every variable the project may read, grouped by phase. Phase 1 needs none; Phase 2 needs the 0G and KeeperHub credentials.
+
+## Out of scope
+
+- Production deployment, CI/CD, multi-tenant auth, observability stack. This is a hackathon prototype.
+- Any chain other than 0G Galileo (testnet, chain id 16602) for the demo. The schema accepts any chain id, but routing logic is single-chain for now.
