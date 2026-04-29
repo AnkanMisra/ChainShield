@@ -1,0 +1,64 @@
+---
+---
+
+<section class="section" id="section-policies">
+  <header class="section-header">
+    <span class="section-num">01 / Policies</span>
+    <div>
+      <h2 class="section-title">Standing rules of <em>engagement</em></h2>
+      <p class="section-lede">Author a policy for a wallet, treasury, or agent</p>
+    </div>
+    <div class="section-actions">
+      <button type="button" class="btn-ghost" data-action="load-demo">Quick demo</button>
+      <button type="button" class="btn-ghost" data-action="refresh-policies">Refresh</button>
+    </div>
+  </header>
+
+  <div class="policies-grid">
+    <form id="policy-form" class="panel" novalidate>
+      <div class="field">
+        <label for="policy-owner">Owner address</label>
+        <input id="policy-owner" name="owner" placeholder="0x1111111111111111111111111111111111111111" required />
+        <span class="field-hint">A 20-byte EVM address (40 hex chars after <code>0x</code>). The wallet whose outflows this policy guards.</span>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="policy-max-transfer">Max transfer (ETH)</label>
+          <input id="policy-max-transfer" name="maxTransferEth" type="number" step="0.001" placeholder="1" />
+        </div>
+        <div class="field">
+          <label for="policy-max-daily">Max daily outflow (ETH)</label>
+          <input id="policy-max-daily" name="maxDailyOutflowEth" type="number" step="0.001" placeholder="3" />
+        </div>
+      </div>
+      <div class="field">
+        <label for="policy-allowed">Allowed destinations</label>
+        <input id="policy-allowed" name="allowedDestinations" placeholder="0x2222…, 0x3333…" />
+        <span class="field-hint">Off-list destinations downgrade verdict to <strong>REQUIRE_HUMAN_CONFIRMATION</strong> (risk 60). Empty = no allowlist.</span>
+      </div>
+      <div class="field">
+        <label for="policy-forbidden">Forbidden 4-byte selectors</label>
+        <input id="policy-forbidden" name="forbiddenSelectors" placeholder="0x095ea7b3, 0x23b872dd" />
+        <span class="field-hint"><code>0x095ea7b3</code> ERC-20 approve · <code>0x23b872dd</code> transferFrom · <code>0xa9059cbb</code> transfer. Match blocks instantly with risk 95.</span>
+      </div>
+      <div class="field">
+        <label for="policy-onblock">Playbook IDs to fire on BLOCK</label>
+        <input id="policy-onblock" name="onBlock" placeholder="8c12ujo1ax7b93w21updd" />
+        <span class="field-hint">Real KeeperHub workflow IDs. Run <code>./scripts/kh.sh list</code> to see yours. Leave blank to skip remediation.</span>
+      </div>
+      <div class="field-actions">
+        <button type="submit" class="btn-primary">Create policy</button>
+      </div>
+    </form>
+
+    <div class="policies-list-wrap">
+      <div class="policies-list-head">
+        <span>Active policies</span>
+        <span id="policies-count">00</span>
+      </div>
+      <div id="policies-list">
+        <div class="empty">No policies yet. Fill the form, or click <em>Quick demo</em> for a sample policy.</div>
+      </div>
+    </div>
+  </div>
+</section>

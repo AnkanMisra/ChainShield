@@ -43,7 +43,9 @@ A small **Solidity** onchain layer will anchor policies and emit events that Kee
 - `PolicyAnchor` contract: records `(owner, policyHash, version)` and emits `PolicyUpdated`
 - optional `EmergencyVault` contract: timelocked safe destination used by the `safe-vault-evac` playbook
 
-The current TypeScript implementation under `src/` is a **reference scaffold** that locks down the API contract, the policy schema, and the rule semantics. The Rust port reuses the JSON shapes (`Policy`, `TxIntent`, `Decision`) verbatim so the browser UI and the existing `tests/` specs remain a black-box conformance suite. Browser UI stays as a single static HTML file regardless of which backend serves it.
+The current TypeScript implementation under `src/` is a **reference scaffold** that locks down the API contract, the policy schema, and the rule semantics. The Rust port reuses the JSON shapes (`Policy`, `TxIntent`, `Decision`) verbatim so the browser UI and the existing `tests/` specs remain a black-box conformance suite.
+
+The frontend lives in [`web/`](./web) as an **Astro** project (vanilla TypeScript islands, no React/Vue). It calls the Fastify API cross-origin in dev (Astro on `:4321`, Fastify on `:8787`) and ships as static HTML+JS in `web/dist/` for production.
 
 See [`docs/architecture.md`](./docs/architecture.md) for the Rust workspace layout, the onchain contract sketches, and the migration order.
 
@@ -82,29 +84,41 @@ forge --version
 ## Quick start with Bun
 
 ```sh
+# install root deps (server) and web deps (Astro)
 bun install
+bun install --cwd web
+
+# start both: Fastify API on :8787, Astro on :4321
 bun run dev
-# open http://127.0.0.1:8787
+
+# open the UI
+open http://127.0.0.1:4321
 ```
 
-That's it. The `dev` script auto-reloads on every file change.
+The `dev` script (a small `scripts/dev.sh`) starts both processes with prefixed log output. Hit Ctrl+C in the terminal to stop both.
 
 ### All Bun commands
 
 | Command | What it does |
 |---|---|
-| `bun install` | Install dependencies from `bun.lock`. |
-| `bun install --frozen-lockfile` | CI-style install — fails if the lockfile would change. |
-| `bun install --production` | Install runtime dependencies only (skips `@types/bun`, `typescript`). |
-| `bun run dev` | Start the risk-gate server with file watching on `127.0.0.1:8787`. |
-| `bun run start` | Start the server **without** watching (use this for production runs). |
-| `bun run build` | Bundle and minify the server to `./dist/server.js`. |
-| `bun run start:bundle` | Run the bundled output from `./dist`. |
-| `bun run typecheck` | Strict `tsc --noEmit` — must exit 0 before commits. |
-| `bun test` | Run the full test suite (13 specs, ~150ms). |
-| `bun test --watch` | Re-run tests on file change. |
-| `bun run test:coverage` | Run tests with v8 coverage report. |
-| `bun run clean` | Remove `dist/`, `coverage/`, `.tsbuildinfo`. |
+| `bun install` | Install root (server) deps from `bun.lock`. |
+| `bun install --cwd web` | Install Astro frontend deps in `web/`. |
+| `bun run dev` | Start **both**: Fastify on `:8787` + Astro on `:4321`, prefixed logs. |
+| `bun run dev:server` | Just the Fastify server (with `--watch`). |
+| `bun run dev:web` | Just the Astro frontend. |
+| `bun run start` | Start the server only, no watcher. |
+| `bun run build` | Build both: server → `dist/`, Astro → `web/dist/`. |
+| `bun run build:server` | Bundle and minify the server only. |
+| `bun run build:web` | Build the Astro static output only. |
+| `bun run preview:web` | Preview the built Astro output locally. |
+| `bun run start:bundle` | Run the bundled server from `dist/`. |
+| `bun run typecheck` | Run both: `tsc` for the server + `astro check` for the web. |
+| `bun run typecheck:server` | Just the server typecheck. |
+| `bun run typecheck:web` | Just the Astro check. |
+| `bun test` | Run the server test suite (`bun:test`, 32 specs). |
+| `bun test --watch` | Re-run server tests on file change. |
+| `bun run test:coverage` | Server tests with v8 coverage. |
+| `bun run clean` | Remove `dist/`, `coverage/`, `.tsbuildinfo`, `web/dist/`, `web/.astro/`. |
 
 ### Bun environment overrides
 
@@ -121,11 +135,13 @@ A full list of variables lives in `.env.example`. None are required for the Phas
 
 ## Quick start with Docker
 
+The Docker image is **server-only** for now — the Astro frontend ships separately as static files (deploy to Vercel, Netlify, Cloudflare Pages, or serve `web/dist` from any static host). A future revision will multi-stage the Astro build and serve `web/dist` from Fastify via `@fastify/static`.
+
 ```sh
-# build and run in one step
+# build and run the API
 docker compose up --build
 
-# open http://127.0.0.1:8787
+# open http://127.0.0.1:8787/health to confirm
 ```
 
 To stop: `docker compose down`.

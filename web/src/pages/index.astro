@@ -1,0 +1,27 @@
+---
+import Layout from "../layouts/Layout.astro";
+import Masthead from "../components/Masthead.astro";
+import Hero from "../components/Hero.astro";
+import PolicySection from "../components/PolicySection.astro";
+import EvaluateSection from "../components/EvaluateSection.astro";
+import TimelineSection from "../components/TimelineSection.astro";
+import JsonModal from "../components/JsonModal.astro";
+---
+
+<Layout>
+  <Masthead />
+  <main class="shell">
+    <Hero />
+    <PolicySection />
+    <EvaluateSection />
+    <TimelineSection />
+  </main>
+  <footer class="legal">
+    Risk-Gate API · <code>/evaluate</code> · <code>/policies</code> · <code>/timeline</code> · branch <code>feature/phase-3-astro-ui</code>
+  </footer>
+  <JsonModal />
+</Layout>
+
+<script>
+  import "../scripts/main.ts";
+</script>

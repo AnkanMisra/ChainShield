@@ -1,0 +1,68 @@
+---
+---
+
+<section class="section" id="section-evaluate">
+  <header class="section-header">
+    <span class="section-num">02 / Evaluation</span>
+    <div>
+      <h2 class="section-title">Will this transaction be <em>allowed?</em></h2>
+      <p class="section-lede">Submit a tx intent. Get a verdict in under a millisecond.</p>
+    </div>
+  </header>
+
+  <div class="evaluate-grid">
+    <form id="evaluate-form" class="panel" novalidate>
+      <div class="field">
+        <label for="policy-select">Policy</label>
+        <select id="policy-select" name="policyId" required>
+          <option value="">— select a policy —</option>
+        </select>
+        <span class="field-hint">The rulebook applied to the intent below.</span>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="evaluate-from">From</label>
+          <input id="evaluate-from" name="from" placeholder="0x1111…" required />
+        </div>
+        <div class="field">
+          <label for="evaluate-to">To</label>
+          <input id="evaluate-to" name="to" placeholder="0x2222…" required />
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="evaluate-value">Value (wei)</label>
+          <input id="evaluate-value" name="value" placeholder="1000000000000000000" value="0" required />
+        </div>
+        <div class="field">
+          <label for="evaluate-chainid">Chain ID</label>
+          <input id="evaluate-chainid" name="chainId" type="number" value="16602" required />
+        </div>
+      </div>
+      <div class="field">
+        <label for="evaluate-data">Calldata</label>
+        <input id="evaluate-data" name="data" value="0x" />
+        <span class="field-hint">Hex-encoded call. <code>0x</code> for plain ETH transfer. First 4 bytes = function selector.</span>
+      </div>
+      <div class="field-actions">
+        <button type="submit" class="btn-primary">Evaluate</button>
+      </div>
+      <div class="presets">
+        <span class="presets-label">Presets</span>
+        <button type="button" class="btn-chip" data-action="preset-safe-transfer">safe transfer</button>
+        <button type="button" class="btn-chip" data-action="preset-over-cap">over-cap</button>
+        <button type="button" class="btn-chip" data-action="preset-forbidden-approve">forbidden approve</button>
+        <button type="button" class="btn-chip" data-action="preset-unknown-destination">unknown destination</button>
+      </div>
+    </form>
+
+    <aside class="verdict-panel" id="evaluate-result">
+      <span class="verdict-corner">Verdict</span>
+      <div class="verdict-empty">
+        <span class="verdict-empty-glyph">·</span>
+        <span class="verdict-empty-text">Awaiting input</span>
+        <span class="verdict-empty-sub">Pick a policy, submit an intent, watch this panel.</span>
+      </div>
+    </aside>
+  </div>
+</section>
