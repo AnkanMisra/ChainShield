@@ -13,6 +13,19 @@ interface KeeperHubExecuteResponse {
   executionId?: string;
 }
 
+const ERROR_BODY_MAX = 200;
+
+async function summarizeErrorBody(res: Response): Promise<string> {
+  const contentType = res.headers.get("content-type") ?? "";
+  let body = await res.text().catch(() => "");
+  if (!body) return "(empty body)";
+  if (contentType.includes("text/html") || /^<!DOCTYPE|<html/i.test(body)) {
+    return "(html error page)";
+  }
+  body = body.replace(/\s+/g, " ").trim();
+  return body.length > ERROR_BODY_MAX ? body.slice(0, ERROR_BODY_MAX) + "..." : body;
+}
+
 export class KeeperHubRunner implements PlaybookRunner {
   constructor(private readonly cfg: KeeperHubConfig) {}
 
@@ -39,8 +52,9 @@ export class KeeperHubRunner implements PlaybookRunner {
     });
 
     if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      throw new Error(`KeeperHub run failed (${res.status}): ${body}`);
+      throw new Error(
+        `KeeperHub run failed (${res.status}): ${await summarizeErrorBody(res)}`,
+      );
     }
 
     const data = (await res.json().catch(() => ({}))) as KeeperHubExecuteResponse;

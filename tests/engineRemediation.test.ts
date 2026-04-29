@@ -118,4 +118,32 @@ describe("DecisionEngine — Phase 2 remediation", () => {
     expect(recorded).toHaveLength(1);
     expect(recorded[0]?.playbookTriggered).toBeUndefined();
   });
+
+  it("truncates oversized runner errors when pushing them into reasons", async () => {
+    const store = new InMemoryStore();
+    const huge = "x".repeat(5000);
+    let counter = 0;
+    const failingRunner = {
+      async run() {
+        throw new Error(`giant ${huge}`);
+      },
+    };
+    const engine = new DecisionEngine({
+      store,
+      playbookRunner: failingRunner,
+      now: () => 1_700_000_000_000,
+      idGen: () => `dec-${++counter}`,
+    });
+    const policy = makePolicy({
+      rules: { maxTransferEth: 1 },
+      remediation: { onBlock: ["pb"] },
+    });
+    const decision = await engine.evaluate(
+      makeIntent({ value: "5000000000000000000" }),
+      policy,
+    );
+    const failureReason = decision.reasons.find((r) => r.startsWith("Playbook pb failed"));
+    expect(failureReason).toBeTruthy();
+    expect(failureReason!.length).toBeLessThanOrEqual(280);
+  });
 });

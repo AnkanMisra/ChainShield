@@ -100,8 +100,57 @@ describe("KeeperHubRunner", () => {
       fetcher,
     });
     await expect(runner.run("revoke-all", makeDecision(), makePolicy())).rejects.toThrow(
-      /KeeperHub run failed \(403\)/,
+      /KeeperHub run failed \(403\): forbidden/,
     );
+  });
+
+  it("suppresses an HTML 404 page in the error message", async () => {
+    const html = "<!DOCTYPE html><html><head><title>404</title></head><body>" +
+      "<script src='/_next/static/chunks/foo.js'></script>".repeat(50) + "</body></html>";
+    const fetcher = (async () =>
+      new Response(html, {
+        status: 404,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      })) as unknown as typeof fetch;
+    const runner = new KeeperHubRunner({
+      baseUrl: "https://app.keeperhub.com",
+      apiKey: "k",
+      fetcher,
+    });
+    let caught: Error | null = null;
+    try {
+      await runner.run("revoke-all", makeDecision(), makePolicy());
+    } catch (e) {
+      caught = e as Error;
+    }
+    expect(caught).not.toBeNull();
+    expect(caught!.message).toBe("KeeperHub run failed (404): (html error page)");
+    expect(caught!.message.length).toBeLessThan(120);
+    expect(caught!.message).not.toContain("<script");
+  });
+
+  it("truncates long non-HTML error bodies to 200 chars + ellipsis", async () => {
+    const huge = "{\"error\":\"" + "x".repeat(2000) + "\"}";
+    const fetcher = (async () =>
+      new Response(huge, {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      })) as unknown as typeof fetch;
+    const runner = new KeeperHubRunner({
+      baseUrl: "https://app.keeperhub.com",
+      apiKey: "k",
+      fetcher,
+    });
+    let caught: Error | null = null;
+    try {
+      await runner.run("revoke-all", makeDecision(), makePolicy());
+    } catch (e) {
+      caught = e as Error;
+    }
+    expect(caught).not.toBeNull();
+    expect(caught!.message).toMatch(/^KeeperHub run failed \(500\): /);
+    expect(caught!.message.endsWith("...")).toBe(true);
+    expect(caught!.message.length).toBeLessThan(260);
   });
 
   it("encodes playbook ids that contain special characters", async () => {

@@ -125,6 +125,132 @@
       .empty { color: var(--muted); font-style: italic; padding: 1rem; text-align: center; }
       .reasons { list-style: none; padding: 0; margin: 0; }
       .reasons li::before { content: "→ "; color: var(--muted); }
+      .reasons li {
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        max-width: 100%;
+        margin: 0.15rem 0;
+      }
+      .reasons li details {
+        display: inline-block;
+        max-width: 100%;
+      }
+      .reasons li details pre {
+        white-space: pre-wrap;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+        max-width: 100%;
+        margin: 0.25rem 0 0 0;
+        max-height: 240px;
+      }
+      td.cell-reasons {
+        max-width: 360px;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+      }
+      td.cell-reasons div {
+        margin: 0.1rem 0;
+      }
+      .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.65);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        padding: 2rem;
+      }
+      .modal-backdrop.hidden { display: none; }
+      .modal-card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        width: min(820px, 100%);
+        max-height: 88vh;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+      }
+      .modal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid var(--border);
+      }
+      .modal-header h3 {
+        margin: 0;
+        color: var(--text);
+        font-size: 0.95rem;
+      }
+      .modal-close {
+        background: transparent;
+        border: 0;
+        color: var(--muted);
+        font-size: 1.2rem;
+        line-height: 1;
+        padding: 0.2rem 0.5rem;
+        cursor: pointer;
+        width: auto;
+      }
+      .modal-close:hover { color: var(--text); }
+      .modal-summary {
+        padding: 0.75rem 1rem 0;
+        font-size: 0.85rem;
+        color: var(--text);
+      }
+      .modal-summary ul { margin: 0.25rem 0 0 1.2rem; padding: 0; }
+      .modal-summary li { margin: 0.15rem 0; }
+      .modal-summary li code {
+        background: var(--bg);
+        padding: 0.05rem 0.3rem;
+        border-radius: 3px;
+        font-size: 0.75rem;
+      }
+      .modal-body {
+        padding: 0.75rem 1rem;
+        overflow: auto;
+        flex: 1;
+      }
+      .modal-body pre {
+        margin: 0;
+        padding: 0.75rem;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        font-size: 0.75rem;
+        line-height: 1.4;
+        white-space: pre-wrap;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+        user-select: text;
+      }
+      .modal-footer {
+        display: flex;
+        gap: 0.5rem;
+        padding: 0.75rem 1rem;
+        border-top: 1px solid var(--border);
+        justify-content: flex-end;
+      }
+      .modal-footer button { width: auto; }
+      .row-actions {
+        display: inline-flex;
+        gap: 0.4rem;
+        align-items: center;
+        margin-left: 0.5rem;
+      }
+      .row-actions button {
+        background: transparent;
+        color: var(--accent);
+        border: 0;
+        padding: 0.1rem 0.3rem;
+        font-size: 0.75rem;
+        cursor: pointer;
+        width: auto;
+        text-decoration: underline;
+      }
+      .row-actions button:hover { color: var(--text); }
       .badge { font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px; background: var(--bg); border: 1px solid var(--border); margin-right: 0.25rem; }
       .playbook-badge {
         font-size: 0.75rem;
@@ -206,6 +332,9 @@
         <label>Forbidden 4-byte selectors (comma-separated)</label>
         <input name="forbiddenSelectors" placeholder="0x095ea7b3,0x23b872dd" />
         <small class="hint">Common: <code>0x095ea7b3</code> ERC-20 <code>approve</code>, <code>0x23b872dd</code> <code>transferFrom</code>, <code>0xa9059cbb</code> <code>transfer</code>. Matches block instantly with risk 95.</small>
+        <label>Playbook IDs to fire on BLOCK (comma-separated)</label>
+        <input name="onBlock" placeholder="8c12ujo1ax7b93w21updd" />
+        <small class="hint">When verdict is BLOCK, the engine attempts each KeeperHub workflow in order until one succeeds. List your real workflow IDs (run <code>./scripts/kh.sh list</code> to see them). Leave blank to skip remediation.</small>
         <div style="margin-top: 0.75rem;">
           <button type="submit">Create policy</button>
         </div>
@@ -284,6 +413,23 @@
       Risk-Gate API on <code>/evaluate</code> · <code>/policies</code> · <code>/timeline</code> · branch <code>feature/chainshield-mvp</code>
     </div>
 
+    <div id="json-modal" class="modal-backdrop hidden" onclick="closeJsonModal(event)">
+      <div class="modal-card" onclick="event.stopPropagation()">
+        <div class="modal-header">
+          <h3 id="json-modal-title">JSON</h3>
+          <button type="button" class="modal-close" aria-label="close" onclick="closeJsonModal()">x</button>
+        </div>
+        <div id="json-modal-summary" class="modal-summary"></div>
+        <div class="modal-body">
+          <pre id="json-modal-body"></pre>
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="json-modal-copy" onclick="copyJsonModal()">Copy JSON</button>
+          <button type="button" class="secondary" onclick="closeJsonModal()">Close</button>
+        </div>
+      </div>
+    </div>
+
     <script>
       const TREASURY = "0x1111111111111111111111111111111111111111";
       const COLD_VAULT = "0x2222222222222222222222222222222222222222";
@@ -321,9 +467,14 @@
         const md = formGet(f, "maxDailyOutflowEth"); if (md) rules.maxDailyOutflowEth = Number(md);
         const ad = formCsv(f, "allowedDestinations"); if (ad) rules.allowedDestinations = ad;
         const fs = formCsv(f, "forbiddenSelectors"); if (fs) rules.forbiddenSelectors = fs;
-        const body = { owner: formGet(f, "owner"), rules, remediation: {} };
+        const remediation = {};
+        const ob = formCsv(f, "onBlock"); if (ob) remediation.onBlock = ob;
+        const body = { owner: formGet(f, "owner"), rules, remediation };
         const r = await api("POST", "/policies", body);
-        if (!r.ok) { alert("Failed: " + JSON.stringify(r.data)); return; }
+        if (!r.ok) {
+          showJsonModal('Failed to create policy', r.data, { summaryHtml: summarizeZodIssues(r.data) });
+          return;
+        }
         f.reset();
         await loadPolicies();
       });
@@ -346,25 +497,38 @@
         await loadTimeline();
       });
 
+      let _lastDecision = null;
       function renderEvaluate(r) {
         const el = document.getElementById("evaluate-result");
-        if (!r.ok) { el.innerHTML = '<pre style="color: var(--red);">' + JSON.stringify(r.data, null, 2) + '</pre>'; return; }
+        if (!r.ok) {
+          _lastDecision = null;
+          el.innerHTML =
+            '<div style="display:flex; gap:0.5rem; align-items:center; margin-bottom:0.5rem;">' +
+              '<span class="verdict v-BLOCK">ERROR</span>' +
+              '<span class="muted">request failed</span>' +
+              '<span class="row-actions"><button type="button" onclick="showJsonModal(\'Evaluate error\', _lastErrorData)">view JSON</button></span>' +
+            '</div>' +
+            '<pre style="color: var(--red); white-space: pre-wrap;">' + escape(JSON.stringify(r.data, null, 2)) + '</pre>';
+          window._lastErrorData = r.data;
+          return;
+        }
+        _lastDecision = r.data;
         const d = r.data;
-        const reasons = (d.reasons || []).map((x) => "<li>" + escape(x) + "</li>").join("");
+        const reasons = (d.reasons || []).map((x) => "<li>" + renderReason(x) + "</li>").join("");
         const rules = (d.rulesMatched || []).map((x) => '<span class="badge">' + escape(x) + "</span>").join("");
         const playbookBadge = d.playbookTriggered
           ? `<div style="margin-bottom:0.5rem;"><span class="playbook-badge">playbook fired: ${escape(d.playbookTriggered.id)} (run ${escape(d.playbookTriggered.runId)})</span></div>`
           : "";
         el.innerHTML = `
-          <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.5rem;">
+          <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.5rem; flex-wrap: wrap;">
             <span class="verdict v-${d.verdict}">${d.verdict}</span>
             <span class="muted">risk score: ${d.riskScore}/100</span>
             <span class="muted">decision id: ${d.id}</span>
+            <span class="row-actions"><button type="button" onclick="showJsonModal('Decision ' + _lastDecision.id, _lastDecision)">view JSON</button></span>
           </div>
           ${rules ? '<div style="margin-bottom:0.5rem;">' + rules + '</div>' : ''}
           ${playbookBadge}
           <ul class="reasons">${reasons}</ul>
-          <details style="margin-top:0.5rem;"><summary class="muted">Raw decision JSON</summary><pre>${escape(JSON.stringify(d, null, 2))}</pre></details>
         `;
       }
 
@@ -412,20 +576,27 @@
         }
         table.style.display = "table";
         empty.style.display = "none";
-        tbody.innerHTML = r.data.slice().reverse().map((d) => {
+        window._timeline = r.data;
+        tbody.innerHTML = r.data.slice().reverse().map((d, idx) => {
           const playbookCell = d.playbookTriggered
             ? '<span class="playbook-badge">' + escape(d.playbookTriggered.id) + ' / ' + escape(d.playbookTriggered.runId) + '</span>'
             : '<span class="muted">—</span>';
           return `
           <tr>
-            <td class="muted">${new Date(d.timestamp).toLocaleTimeString()}</td>
+            <td class="muted">${new Date(d.timestamp).toLocaleTimeString()}<div class="row-actions"><button type="button" onclick="showTimelineRow(${r.data.length - 1 - idx})">view JSON</button></div></td>
             <td><span class="verdict v-${d.verdict}">${d.verdict}</span></td>
             <td>${d.riskScore}</td>
             <td>${(d.rulesMatched || []).map((x) => '<span class="badge">' + escape(x) + "</span>").join(" ") || '<span class="muted">—</span>'}</td>
             <td>${playbookCell}</td>
-            <td>${(d.reasons || []).map(escape).join("<br>")}</td>
+            <td class="cell-reasons">${(d.reasons || []).map((r) => '<div>' + renderReason(r) + '</div>').join("")}</td>
           </tr>`;
         }).join("");
+      }
+
+      function showTimelineRow(i) {
+        const d = (window._timeline || [])[i];
+        if (!d) return;
+        showJsonModal('Decision ' + d.id, d);
       }
 
       async function loadDemo() {
@@ -438,8 +609,8 @@
             forbiddenSelectors: ["0x095ea7b3"]
           },
           remediation: {
-            onBlock: ["revoke-all-approvals", "safe-vault-evac"],
-            notifyChannels: ["discord", "collector"]
+            onBlock: [],
+            notifyChannels: ["collector"]
           }
         };
         await api("POST", "/policies", body);
@@ -487,6 +658,53 @@
 
       function escape(s) {
         return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+      }
+
+      const REASON_TRUNCATE = 200;
+      function renderReason(text) {
+        const s = String(text);
+        if (s.length <= REASON_TRUNCATE) return escape(s);
+        const head = s.slice(0, REASON_TRUNCATE);
+        return '<details><summary>' + escape(head) + '…</summary><pre>' + escape(s) + '</pre></details>';
+      }
+
+      let _modalText = "";
+      function showJsonModal(title, data, opts) {
+        _modalText = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+        document.getElementById('json-modal-title').textContent = title;
+        document.getElementById('json-modal-body').textContent = _modalText;
+        const sum = document.getElementById('json-modal-summary');
+        const summaryHtml = (opts && opts.summaryHtml) || "";
+        sum.innerHTML = summaryHtml;
+        sum.style.display = summaryHtml ? "" : "none";
+        document.getElementById('json-modal-copy').textContent = 'Copy JSON';
+        document.getElementById('json-modal').classList.remove('hidden');
+      }
+      function closeJsonModal(e) {
+        if (e && e.target && e.target.id !== 'json-modal') return;
+        document.getElementById('json-modal').classList.add('hidden');
+      }
+      async function copyJsonModal() {
+        const btn = document.getElementById('json-modal-copy');
+        try {
+          await navigator.clipboard.writeText(_modalText);
+          btn.textContent = 'Copied';
+        } catch {
+          btn.textContent = 'Copy failed';
+        }
+        setTimeout(() => { btn.textContent = 'Copy JSON'; }, 1500);
+      }
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeJsonModal();
+      });
+
+      function summarizeZodIssues(data) {
+        if (!data || data.error !== 'ValidationError' || !Array.isArray(data.issues)) return "";
+        const items = data.issues.map((iss) => {
+          const path = (iss.path || []).join('.') || '(root)';
+          return '<li><code>' + escape(path) + '</code> — ' + escape(iss.message || iss.code || '') + '</li>';
+        }).join('');
+        return '<div>Validation failed:</div><ul>' + items + '</ul>';
       }
 
       loadPolicies();
