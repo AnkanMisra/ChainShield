@@ -126,6 +126,16 @@
       .reasons { list-style: none; padding: 0; margin: 0; }
       .reasons li::before { content: "→ "; color: var(--muted); }
       .badge { font-size: 0.7rem; padding: 0.1rem 0.4rem; border-radius: 3px; background: var(--bg); border: 1px solid var(--border); margin-right: 0.25rem; }
+      .playbook-badge {
+        font-size: 0.75rem;
+        padding: 0.2rem 0.5rem;
+        border-radius: 3px;
+        background: rgba(63, 185, 80, 0.08);
+        border: 1px solid var(--green);
+        color: var(--green);
+        font-weight: 600;
+        display: inline-block;
+      }
       .footer { color: var(--muted); font-size: 0.7rem; text-align: center; margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border); }
       .hint { display: block; color: var(--muted); font-size: 0.7rem; margin-top: 0.25rem; line-height: 1.4; }
       .guide { background: rgba(88, 166, 255, 0.06); border: 1px solid rgba(88, 166, 255, 0.4); }
@@ -261,6 +271,7 @@
             <th>Verdict</th>
             <th>Risk</th>
             <th>Rules matched</th>
+            <th>Playbook</th>
             <th>Reasons</th>
           </tr>
         </thead>
@@ -341,6 +352,9 @@
         const d = r.data;
         const reasons = (d.reasons || []).map((x) => "<li>" + escape(x) + "</li>").join("");
         const rules = (d.rulesMatched || []).map((x) => '<span class="badge">' + escape(x) + "</span>").join("");
+        const playbookBadge = d.playbookTriggered
+          ? `<div style="margin-bottom:0.5rem;"><span class="playbook-badge">playbook fired: ${escape(d.playbookTriggered.id)} (run ${escape(d.playbookTriggered.runId)})</span></div>`
+          : "";
         el.innerHTML = `
           <div style="display:flex; align-items:center; gap:0.75rem; margin-bottom:0.5rem;">
             <span class="verdict v-${d.verdict}">${d.verdict}</span>
@@ -348,6 +362,7 @@
             <span class="muted">decision id: ${d.id}</span>
           </div>
           ${rules ? '<div style="margin-bottom:0.5rem;">' + rules + '</div>' : ''}
+          ${playbookBadge}
           <ul class="reasons">${reasons}</ul>
           <details style="margin-top:0.5rem;"><summary class="muted">Raw decision JSON</summary><pre>${escape(JSON.stringify(d, null, 2))}</pre></details>
         `;
@@ -397,15 +412,20 @@
         }
         table.style.display = "table";
         empty.style.display = "none";
-        tbody.innerHTML = r.data.slice().reverse().map((d) => `
+        tbody.innerHTML = r.data.slice().reverse().map((d) => {
+          const playbookCell = d.playbookTriggered
+            ? '<span class="playbook-badge">' + escape(d.playbookTriggered.id) + ' / ' + escape(d.playbookTriggered.runId) + '</span>'
+            : '<span class="muted">—</span>';
+          return `
           <tr>
             <td class="muted">${new Date(d.timestamp).toLocaleTimeString()}</td>
             <td><span class="verdict v-${d.verdict}">${d.verdict}</span></td>
             <td>${d.riskScore}</td>
             <td>${(d.rulesMatched || []).map((x) => '<span class="badge">' + escape(x) + "</span>").join(" ") || '<span class="muted">—</span>'}</td>
+            <td>${playbookCell}</td>
             <td>${(d.reasons || []).map(escape).join("<br>")}</td>
-          </tr>
-        `).join("");
+          </tr>`;
+        }).join("");
       }
 
       async function loadDemo() {
@@ -417,7 +437,10 @@
             allowedDestinations: [COLD_VAULT],
             forbiddenSelectors: ["0x095ea7b3"]
           },
-          remediation: { onBlock: ["revoke-all-approvals"], notifyChannels: ["discord"] }
+          remediation: {
+            onBlock: ["revoke-all-approvals", "safe-vault-evac"],
+            notifyChannels: ["discord", "collector"]
+          }
         };
         await api("POST", "/policies", body);
         await loadPolicies();
