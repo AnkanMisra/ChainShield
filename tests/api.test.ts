@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { buildApp } from "../src/risk-gate/app.js";
 import { TREASURY, COLD_VAULT, ATTACKER } from "./helpers.js";
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { InMemoryStore } from "../src/memory/memoryStore.js";
 import { PolicyService } from "../src/core/policyService.js";
 import { TREASURY, COLD_VAULT } from "./helpers.js";

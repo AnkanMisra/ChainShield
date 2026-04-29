@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { DecisionEngine } from "../src/core/engine.js";
 import { InMemoryStore } from "../src/memory/memoryStore.js";
 import { ATTACKER, COLD_VAULT, TOKEN, TREASURY, approveCalldata, makeIntent, makePolicy } from "./helpers.js";
