@@ -21,6 +21,30 @@ Reference for the most common ways treasuries and wallets lose ERC-20 funds, and
 
 **Detection signal in calldata:** the second 32-byte word equals `0xff...ff` (32 bytes of `f`).
 
+```mermaid
+sequenceDiagram
+    actor V as Victim
+    participant W as Wallet
+    participant T as ERC-20 Token
+    participant P as Phishing dApp
+    actor A as Attacker
+
+    Note over V,A: Time 0 — User signs the approval
+    V->>P: visit dApp, "connect wallet"
+    P->>W: request approve(P_addr, MAX_UINT256)
+    W->>V: prompt to sign
+    V->>W: confirm
+    W->>T: approve(P_addr, MAX_UINT256)
+    Note right of T: allowance[V][P_addr] = MAX
+
+    Note over V,A: Days or weeks later — drain
+    A->>T: transferFrom(V, A_addr, balance)
+    T-->>A: balance moved to attacker
+
+    Note over V,A: ChainShield defense (would have blocked at sign-time)
+    Note right of W: forbiddenSelectors: [0x095ea7b3]<br/>verdict = BLOCK<br/>risk = 95
+```
+
 ## 2. Permit signature replay (ERC-2612)
 
 **What:** A `permit(owner, spender, value, deadline, v, r, s)` signature, once signed off-chain, can be submitted by anyone to grant the spender allowance. Attacker tricks user into signing a permit (often disguised as a "free login" or wallet-connect step), then submits it themselves.

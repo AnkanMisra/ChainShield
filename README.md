@@ -6,29 +6,75 @@ Built for **ETHGlobal OpenAgents 2026** with sponsor integrations planned for **
 
 For the full product story, demo flow, and judge pitch, see [`docs/product-idea.md`](./docs/product-idea.md). For the system design and sponsor entry points, see [`docs/architecture.md`](./docs/architecture.md). Sponsor research notes live under [`docs/sponsors/`](./docs/sponsors). Project conventions for AI coding agents live in [`AGENTS.md`](./AGENTS.md).
 
+## How it works at a glance
+
+```mermaid
+flowchart LR
+    Wallet[Wallet or Treasury] -->|tx intent| Gate[ChainShield<br/>Risk Gate]
+    Gate -->|ALLOW| Chain[(EVM Chain)]
+    Gate -->|BLOCK| Stop((blocked))
+    Gate -->|REQUIRE_HUMAN_<br/>CONFIRMATION| Human[Human review]
+    Gate --> Timeline[(Audit timeline<br/>0G Storage)]
+    Gate -->|on BLOCK| Playbook[Auto-remediation<br/>KeeperHub]
+    Playbook --> Chain
+```
+
 ## Project status
 
 | Phase | Scope | Status |
 |---|---|---|
-| Day 1 — Foundation | policy schema, decision engine, risk-gate API, in-memory store | done |
-| Day 2 — Actionability | tx simulation, threat scoring, KeeperHub playbooks, notifications | next |
+| Day 1 — Foundation | policy schema, decision engine, risk-gate API, in-memory store | done (TypeScript scaffold) |
+| Day 2 — Actionability | tx simulation, threat scoring, KeeperHub playbooks, notifications | next (Rust) |
 | Day 3 — Demo readiness | timeline UI, full explainability, attack scenarios, demo polish | pending |
 
 Current branch `feature/chainshield-mvp` ships a working risk gate with a browser UI, 13 passing tests, and Docker support.
 
+## Backend direction
+
+The bulk of the production backend will be written in **Rust**:
+
+- decision engine (the deterministic policy evaluator)
+- transaction simulator (REVM-based)
+- sponsor adapters (KeeperHub, Gensyn AXL, and 0G where the SDK story allows)
+- risk-gate HTTP server (Axum)
+
+A small **Solidity** onchain layer will anchor policies and emit events that KeeperHub workflows can subscribe to:
+
+- `PolicyAnchor` contract: records `(owner, policyHash, version)` and emits `PolicyUpdated`
+- optional `EmergencyVault` contract: timelocked safe destination used by the `safe-vault-evac` playbook
+
+The current TypeScript implementation under `src/` is a **reference scaffold** that locks down the API contract, the policy schema, and the rule semantics. The Rust port reuses the JSON shapes (`Policy`, `TxIntent`, `Decision`) verbatim so the browser UI and the existing `tests/` specs remain a black-box conformance suite. Browser UI stays as a single static HTML file regardless of which backend serves it.
+
+See [`docs/architecture.md`](./docs/architecture.md) for the Rust workspace layout, the onchain contract sketches, and the migration order.
+
 ## Requirements
+
+For the current TypeScript scaffold (Phase 1):
 
 - [Bun](https://bun.sh) 1.1+ (only required if running outside Docker)
 - Docker 24+ and Docker Compose v2 (only required for the containerized path)
+
+For the upcoming Rust + Solidity work (Phase 2+):
+
+- [Rust](https://rustup.rs) 1.83+ via `rustup`
+- [Foundry](https://book.getfoundry.sh) for Solidity (`forge`, `cast`, `anvil`)
 
 ```sh
 # install Bun (macOS/Linux/WSL)
 curl -fsSL https://bun.sh/install | bash
 
+# install Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# install Foundry
+curl -L https://foundry.paradigm.xyz | bash && foundryup
+
 # verify
 bun --version          # >= 1.1.0
 docker --version       # >= 24.0
 docker compose version # v2.x
+rustc --version        # >= 1.83
+forge --version
 ```
 
 ---

@@ -10,15 +10,41 @@ Built for ETHGlobal OpenAgents 2026. Sponsor integrations planned: 0G (storage +
 
 ## Tech stack
 
+The production backend is moving to **Rust + a small Solidity layer**. The current TypeScript code is a reference scaffold that locks down the API contract and ships the demo browser UI; it is not a long-term home for the engine.
+
+### Rust (Phase 2+, primary)
+
+- Runtime: stable Rust 1.83+
+- HTTP: `axum` + `tower`
+- Async: `tokio`
+- Serialization: `serde` + `serde_json`
+- EVM simulation: `revm`
+- Onchain client: `alloy` (preferred) or `ethers-rs`
+- HTTP client: `reqwest`
+- Errors: `thiserror` (typed) + `anyhow` (boundary)
+- Tests: built-in `cargo test`
+
+### Solidity (Phase 2+, small surface)
+
+- Toolchain: Foundry (`forge`, `cast`, `anvil`)
+- Compiler: 0.8.24+
+- Style: OpenZeppelin imports where available
+
+### TypeScript (Phase 1 scaffold, Bun-hosted)
+
 - Runtime: Bun 1.3 (single tool for install, run, test, build)
 - Language: TypeScript with strict mode
 - HTTP: Fastify 5
 - Validation: Zod
-- Onchain: ethers v6 (currently a dependency; not yet wired up)
-- Tests: `bun:test` (Jest-compatible API)
+- Onchain: ethers v6
+- Tests: `bun:test`
 - Containerization: Docker (multi-stage on `oven/bun:1.3-alpine`)
 
+The TS scaffold is the conformance test suite for the Rust port: same JSON shapes, same verdict ladder, same UI.
+
 ## Run, test, build
+
+### TypeScript scaffold (current)
 
 ```sh
 bun install                # install deps from bun.lock
@@ -38,21 +64,57 @@ Docker path:
 docker compose up --build  # builds and runs on host port 8787
 ```
 
+### Rust workspace (planned, Phase 2+)
+
+```sh
+cargo build                # debug build
+cargo build --release      # production build
+cargo run -p risk-gate     # run the server crate
+cargo test                 # full workspace test suite
+cargo test -p engine       # tests for a single crate
+cargo clippy --all-targets -- -D warnings   # lint
+cargo fmt --all            # format
+```
+
+### Solidity (planned, Phase 2+)
+
+```sh
+forge build                # compile contracts
+forge test -vvv            # run tests with traces
+forge script script/Deploy.s.sol --broadcast --rpc-url galileo
+```
+
 ## Where things live
 
+### Today (TypeScript scaffold)
+
 - `src/core/` — types, Zod schemas, policy service, decision engine, EVM selector helpers
-- `src/memory/` — `Store` interface and the in-memory implementation (the seam where 0G Storage will plug in)
+- `src/memory/` — `Store` interface and the in-memory implementation
 - `src/risk-gate/` — Fastify app and server entrypoint
 - `tests/` — `bun:test` specs covering engine rules, policy service, and the API
 - `public/index.html` — single-page browser UI served at `/`
 - `docs/` — architecture, product story, sponsor research
-- `.claude/skills/` — reusable agent skills for repeated tasks in this project
+- `.claude/skills/` — reusable agent skills for repeated tasks
 
-Empty Phase 2 dirs are not pre-created. Add them when the code arrives.
+### Planned (Rust + Solidity, Phase 2+)
+
+- `crates/core/` — types, policy schema, decision engine
+- `crates/engine/` — orchestrator that composes core + simulator + inference + playbooks
+- `crates/risk-gate/` — Axum HTTP server (the binary)
+- `crates/simulator/` — REVM-based tx simulation
+- `crates/memory/` — `Store` trait + adapters (in-memory, 0G via sidecar)
+- `crates/inference/` — `InferenceClient` trait + 0G impl
+- `crates/playbooks/` — KeeperHub REST client + notification channels
+- `crates/mesh/` — Gensyn AXL bridge client
+- `contracts/` — Foundry project: `PolicyAnchor.sol`, optional `EmergencyVault.sol`
+- `infra/keeperhub-templates/` — JSON workflow definitions for playbooks
+- `0g-bridge/` — small Go or TS sidecar process that exposes 0G Storage SDK over HTTP for the Rust crates to call (the 0G SDK has no Rust client)
+
+Empty dirs are not pre-created. Add each when the code arrives.
 
 ## Conventions
 
-### Code style
+### TypeScript code style (scaffold)
 
 - Strict TypeScript. `noUncheckedIndexedAccess` is on, so always handle `undefined` from `arr[i]` and `Map.get`.
 - ESM only. Imports of local files use the `.js` extension (Node ESM convention; Bun and `tsc` both honor it).
@@ -60,6 +122,25 @@ Empty Phase 2 dirs are not pre-created. Add them when the code arrives.
 - Prefer interfaces for public shapes, type aliases for unions and primitives.
 - Validate at the boundary (HTTP body, env, untrusted JSON) with Zod, then trust the typed value internally.
 - Keep error messages user-facing; the Fastify error handler already formats Zod errors as 400s.
+
+### Rust code style
+
+- `#![deny(warnings)]` is overkill in CI; instead run `cargo clippy --all-targets -- -D warnings` and require it green.
+- Use `thiserror` for typed crate-level error enums; `anyhow::Result` only at the binary boundary.
+- No `unwrap()` / `expect()` outside tests, examples, or one-off scripts. Prefer `?`.
+- One trait per behaviour seam (`Store`, `Simulator`, `InferenceClient`, `PlaybookRunner`); keep concrete clients substitutable.
+- `serde::Serialize` / `serde::Deserialize` derives for every wire type. Field names match the JSON the TS scaffold emits, byte-for-byte.
+- Integration tests under `crates/<name>/tests/`; unit tests in-module under `#[cfg(test)]`.
+- Use `tokio::test` for async tests; do not block on `block_on` inside async code.
+
+### Solidity code style
+
+- Solidity 0.8.24+, `pragma solidity ^0.8.24;` exact at the top.
+- Use OpenZeppelin (`@openzeppelin/contracts`) for `Ownable`, `Pausable`, `ReentrancyGuard`.
+- Custom errors instead of `require(_, "string")`; saves gas and keeps revert reasons typed.
+- Foundry tests in `contracts/test/<Name>.t.sol`. Run with `-vvv` when debugging.
+- Use `forge fmt` to format; do not hand-format.
+- Only ever target Galileo testnet (chain id 16602) for the demo. Mainnet deploys are out of scope.
 
 ### Tests
 
@@ -109,6 +190,8 @@ Project-local Claude Code skills live in `.claude/skills/`. Invoke them via the 
 - `policy-author`: when you are designing a new `Policy` for a wallet or treasury and need a structured approach.
 - `erc20-attack-patterns`: when reasoning about token approvals, transfers, or related ERC-20 attack vectors.
 - `sponsor-wiring`: when starting Phase 2 and adding the 0G, KeeperHub, or Gensyn AXL adapter modules.
+- `rust-backend-style`: when writing or reviewing Rust code in this repo. Crate layout, error handling, async, serde shapes, testing patterns.
+- `solidity-contracts`: when authoring or reviewing the onchain layer. Patterns for `PolicyAnchor`, `EmergencyVault`, custom errors, Foundry tests.
 
 Read the corresponding `SKILL.md` before acting.
 
