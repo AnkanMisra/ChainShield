@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
-import type { Decision, Policy, TxIntent, Verdict } from "./types.js";
+import type { Decision, Policy, SimulationResult, TxIntent, Verdict } from "./types.js";
 import { ERC20_APPROVE, decodeUint256, selectorOf } from "./selectors.js";
 import type { Store } from "../memory/store.js";
 import type { NotificationChannel, PlaybookRunner } from "../playbooks/runner.js";
+import type { Simulator } from "../simulator/simulator.js";
 
 const ETH_DECIMALS = 18n;
 const WEI_PER_ETH = 10n ** ETH_DECIMALS;
@@ -38,6 +39,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface DecisionEngineOptions {
   store: Store;
+  simulator?: Simulator;
   playbookRunner?: PlaybookRunner;
   notificationChannels?: Record<string, NotificationChannel>;
   now?: () => number;
@@ -46,6 +48,7 @@ export interface DecisionEngineOptions {
 
 export class DecisionEngine {
   private readonly store: Store;
+  private readonly simulator: Simulator | undefined;
   private readonly runner: PlaybookRunner | undefined;
   private readonly channels: Record<string, NotificationChannel>;
   private readonly now: () => number;
@@ -53,6 +56,7 @@ export class DecisionEngine {
 
   constructor(opts: DecisionEngineOptions) {
     this.store = opts.store;
+    this.simulator = opts.simulator;
     this.runner = opts.playbookRunner;
     this.channels = opts.notificationChannels ?? {};
     this.now = opts.now ?? (() => Date.now());
@@ -152,6 +156,14 @@ export class DecisionEngine {
       }
     }
 
+    const simulation = await this.runSimulator(intent);
+    if (simulation && !simulation.success) {
+      if (verdict === "ALLOW") verdict = "REQUIRE_HUMAN_CONFIRMATION";
+      riskScore = Math.max(riskScore, 70);
+      rulesMatched.push("simulationRevert");
+      reasons.push(`Simulation reverted: ${simulation.revertReason ?? "unknown"}.`);
+    }
+
     if (verdict === "ALLOW" && reasons.length === 0) {
       reasons.push("All policy rules satisfied.");
     }
@@ -165,6 +177,7 @@ export class DecisionEngine {
       reasons,
       policyId: policy.id,
       timestamp: this.now(),
+      ...(simulation ? { simulation } : {}),
     };
 
     if (decision.verdict === "BLOCK") {
@@ -172,6 +185,21 @@ export class DecisionEngine {
     }
 
     return this.persist(decision);
+  }
+
+  private async runSimulator(intent: TxIntent): Promise<SimulationResult | undefined> {
+    if (!this.simulator) return undefined;
+    try {
+      return await this.simulator.simulate(intent);
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err);
+      const safe = raw.replace(/\s+/g, " ").trim().slice(0, 256);
+      return {
+        success: false,
+        revertReason: `simulator error: ${safe}`,
+        balanceDeltas: [],
+      };
+    }
   }
 
   private async persist(decision: Decision): Promise<Decision> {
