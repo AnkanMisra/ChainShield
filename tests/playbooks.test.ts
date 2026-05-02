@@ -41,7 +41,7 @@ describe("MockRunner", () => {
 });
 
 describe("KeeperHubRunner", () => {
-  it("POSTs to /api/workflows/:id/execute with bearer auth and a JSON inputs body", async () => {
+  it("POSTs to /api/workflow/:id/execute with bearer auth and a JSON inputs body", async () => {
     let captured: { url: string; method: string; headers: Record<string, string>; body: unknown } | null = null;
     const fetcher = (async (url: string | URL | Request, init?: RequestInit) => {
       const headersIn = init?.headers as Record<string, string> | undefined;
@@ -66,7 +66,7 @@ describe("KeeperHubRunner", () => {
     const result = await runner.run("revoke-all-approvals", makeDecision(), makePolicy());
 
     expect(result).toEqual({ id: "revoke-all-approvals", runId: "kh-42" });
-    expect(captured!.url).toBe("https://app.keeperhub.com/api/workflows/revoke-all-approvals/execute");
+    expect(captured!.url).toBe("https://app.keeperhub.com/api/workflow/revoke-all-approvals/execute");
     expect(captured!.method).toBe("POST");
     expect(captured!.headers["Authorization"]).toBe("Bearer secret-token");
     expect(captured!.headers["Content-Type"]).toBe("application/json");

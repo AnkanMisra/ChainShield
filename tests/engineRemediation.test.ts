@@ -3,7 +3,7 @@ import { DecisionEngine } from "../src/core/engine.js";
 import { InMemoryStore } from "../src/memory/memoryStore.js";
 import { MockRunner } from "../src/playbooks/runner.js";
 import { CollectorChannel } from "../src/playbooks/notifier.js";
-import { ATTACKER, COLD_VAULT, makeIntent, makePolicy } from "./helpers.js";
+import { ATTACKER, COLD_VAULT, TOKEN, approveCalldata, makeIntent, makePolicy } from "./helpers.js";
 
 function buildEngine(opts: {
   failPlaybookIds?: string[];
@@ -38,6 +38,29 @@ describe("DecisionEngine — Phase 2 remediation", () => {
     expect(decision.playbookTriggered).toEqual({ id: "revoke-all", runId: "mock-run-1" });
     expect(runner.invocations).toHaveLength(1);
     expect(runner.invocations[0]?.playbookId).toBe("revoke-all");
+  });
+
+  it("triggers remediation on the forbidden-selector short-circuit path", async () => {
+    const discord = new CollectorChannel();
+    const { engine, runner } = buildEngine({ channels: { discord } });
+    const policy = makePolicy({
+      rules: { forbiddenSelectors: ["0x095ea7b3"] },
+      remediation: { onBlock: ["revoke-all"], notifyChannels: ["discord"] },
+    });
+    const decision = await engine.evaluate(
+      makeIntent({
+        to: TOKEN,
+        data: approveCalldata(ATTACKER, 2n ** 256n - 1n),
+      }),
+      policy,
+    );
+    expect(decision.verdict).toBe("BLOCK");
+    expect(decision.riskScore).toBe(95);
+    expect(decision.rulesMatched).toEqual(["forbiddenSelectors"]);
+    expect(decision.playbookTriggered).toEqual({ id: "revoke-all", runId: "mock-run-1" });
+    expect(runner.invocations).toHaveLength(1);
+    expect(discord.messages).toHaveLength(1);
+    expect(discord.messages[0]?.verdict).toBe("BLOCK");
   });
 
   it("falls through to the next playbook when the first one throws", async () => {

@@ -73,7 +73,7 @@ case "$CMD" in
       -H "Authorization: Bearer $KEY" \
       -H "Content-Type: application/json" \
       -d "{\"inputs\": $INPUTS_JSON}" \
-      "${URL_BASE}/api/workflows/$1/execute"
+      "${URL_BASE}/api/workflow/$1/execute"
     ;;
   status)
     [ $# -ge 1 ] || { echo "usage: kh.sh status <execution-id>" >&2; exit 1; }

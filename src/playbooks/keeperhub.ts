@@ -31,7 +31,7 @@ export class KeeperHubRunner implements PlaybookRunner {
 
   async run(playbookId: string, decision: Decision, policy: Policy): Promise<PlaybookRun> {
     const fetcher = this.cfg.fetcher ?? fetch;
-    const url = `${this.cfg.baseUrl.replace(/\/+$/, "")}/api/workflows/${encodeURIComponent(playbookId)}/execute`;
+    const url = `${this.cfg.baseUrl.replace(/\/+$/, "")}/api/workflow/${encodeURIComponent(playbookId)}/execute`;
 
     const res = await fetcher(url, {
       method: "POST",
