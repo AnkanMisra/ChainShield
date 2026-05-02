@@ -144,6 +144,43 @@ This is critical for trust, audits, and judge clarity.
 
 Use this exact flow in your presentation.
 
+### Flow at a glance
+
+```mermaid
+sequenceDiagram
+    actor User as Demo wallet
+    participant UI as ChainShield UI
+    participant Eng as Decision Engine
+    participant Chain as 0G Galileo
+    participant KH as KeeperHub
+    participant Note as Notification
+
+    Note over User,Note: Scene 1 — Normal operation (30-45s)
+    User->>UI: submit safe transfer<br/>0.5 ETH to vault
+    UI->>Eng: POST /evaluate
+    Eng-->>UI: ALLOW (risk 0)
+    UI->>Chain: send tx
+    Chain-->>UI: tx hash logged
+
+    Note over User,Note: Scene 2 — Risky tx blocked (60-90s)
+    User->>UI: submit 5 ETH to unknown<br/>or unlimited approve()
+    UI->>Eng: POST /evaluate
+    Eng-->>UI: BLOCK<br/>maxTransferEth + allowedDestinations
+    UI--xChain: tx never submitted
+
+    Note over User,Note: Scene 3 — Incident playbook (60-90s)
+    User->>UI: submit dangerous approval pattern
+    UI->>Eng: POST /evaluate
+    Eng-->>UI: BLOCK (risk 95)
+    Eng->>KH: run revoke-all-approvals
+    KH->>Chain: approve(spender, 0) per spender
+    KH->>Note: Discord/Telegram alert
+
+    Note over User,Note: Scene 4 — Explainable trail (45-60s)
+    User->>UI: open incident timeline
+    UI-->>User: 3 entries with reasons,<br/>rules matched, scores, tx hashes
+```
+
 ### Demo Setup
 
 - wallet with test funds

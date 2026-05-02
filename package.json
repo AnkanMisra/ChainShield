@@ -1,0 +1,31 @@
+{
+  "name": "chainshield-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ChainShield Agent — autonomous treasury and wallet protection.",
+  "type": "module",
+  "module": "src/risk-gate/server.ts",
+  "engines": {
+    "bun": ">=1.1.0"
+  },
+  "scripts": {
+    "dev": "bun run --watch src/risk-gate/server.ts",
+    "start": "bun run src/risk-gate/server.ts",
+    "build": "bun build ./src/risk-gate/server.ts --outdir ./dist --target bun --minify",
+    "start:bundle": "bun run dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "test:coverage": "bun test --coverage",
+    "clean": "rm -rf dist coverage .tsbuildinfo"
+  },
+  "dependencies": {
+    "ethers": "^6.13.4",
+    "fastify": "^5.1.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.1.14",
+    "typescript": "^5.7.2"
+  }
+}

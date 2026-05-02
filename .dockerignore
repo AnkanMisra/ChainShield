@@ -1,0 +1,26 @@
+.git
+.gitignore
+.github
+.vscode
+.idea
+.DS_Store
+
+node_modules
+dist
+coverage
+.tsbuildinfo
+
+# tests are not needed in the runtime image (kept out for size + perf)
+tests
+
+# docs and planning files
+*.md
+!README.md
+
+.env
+.env.*
+!.env.example
+
+# editor / OS junk
+*.swp
+*.log

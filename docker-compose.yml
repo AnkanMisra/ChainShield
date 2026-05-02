@@ -1,0 +1,19 @@
+services:
+  chainshield:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: chainshield-agent:dev
+    container_name: chainshield
+    ports:
+      - "${PORT:-8787}:8787"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8787"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8787/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 3s
