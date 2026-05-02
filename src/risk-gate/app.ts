@@ -1,11 +1,12 @@
 import { join } from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
 import { ZodError } from "zod";
-import type { Store } from "../memory/store.js";
+import type { AnchorRecord, Store } from "../memory/store.js";
 import { InMemoryStore } from "../memory/memoryStore.js";
 import { DecisionEngine } from "../core/engine.js";
 import { PolicyService } from "../core/policyService.js";
 import { evaluateRequestSchema, policyInputSchema } from "../core/schemas.js";
+import type { Decision, Policy } from "../core/types.js";
 
 const UI_PATH = join(import.meta.dir, "..", "..", "public", "index.html");
 
@@ -16,11 +17,25 @@ export interface AppDeps {
 }
 
 export function buildApp(deps: AppDeps = {}): FastifyInstance {
-  const store = deps.store ?? new InMemoryStore();
+  const store: Store = deps.store ?? new InMemoryStore();
   const engine = deps.engine ?? new DecisionEngine({ store });
   const policyService = deps.policyService ?? new PolicyService(store);
 
   const app = Fastify({ logger: false });
+
+  function anchorOf(id: string): AnchorRecord | undefined {
+    return store.getAnchor?.(id);
+  }
+  function withAnchor<T extends { id: string }>(item: T): T & { anchor?: AnchorRecord } {
+    const a = anchorOf(item.id);
+    return a ? { ...item, anchor: a } : item;
+  }
+  function withAnchorPolicy(policy: Policy) {
+    return withAnchor(policy);
+  }
+  function withAnchorDecision(decision: Decision) {
+    return withAnchor(decision);
+  }
 
   app.setErrorHandler((err, _req, reply) => {
     if (err instanceof ZodError) {
@@ -41,14 +56,14 @@ export function buildApp(deps: AppDeps = {}): FastifyInstance {
   app.post("/policies", async (req, reply) => {
     const policy = await policyService.create(req.body);
     reply.status(201);
-    return policy;
+    return withAnchorPolicy(policy);
   });
 
   app.put("/policies/:id", async (req, reply) => {
     const { id } = req.params as { id: string };
     const parsed = policyInputSchema.parse(req.body);
     try {
-      return await policyService.update(id, parsed);
+      return withAnchorPolicy(await policyService.update(id, parsed));
     } catch (err) {
       reply.status(404);
       return { error: "NotFound", message: (err as Error).message };
@@ -62,12 +77,13 @@ export function buildApp(deps: AppDeps = {}): FastifyInstance {
       reply.status(404);
       return { error: "NotFound" };
     }
-    return policy;
+    return withAnchorPolicy(policy);
   });
 
   app.get("/policies", async (req) => {
     const { owner } = req.query as { owner?: string };
-    return policyService.list(owner as `0x${string}` | undefined);
+    const list = await policyService.list(owner as `0x${string}` | undefined);
+    return list.map(withAnchorPolicy);
   });
 
   app.post("/evaluate", async (req, reply) => {
@@ -84,16 +100,17 @@ export function buildApp(deps: AppDeps = {}): FastifyInstance {
         message: "Policy owner must match intent.from.",
       };
     }
-    return engine.evaluate(body.intent, policy);
+    return withAnchorDecision(await engine.evaluate(body.intent, policy));
   });
 
   app.get("/timeline", async (req) => {
     const q = req.query as { owner?: string; from?: string; to?: string };
-    return store.listDecisions({
+    const list = await store.listDecisions({
       owner: q.owner as `0x${string}` | undefined,
       from: q.from ? Number(q.from) : undefined,
       to: q.to ? Number(q.to) : undefined,
     });
+    return list.map(withAnchorDecision);
   });
 
   return app;

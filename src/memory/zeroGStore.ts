@@ -1,12 +1,9 @@
 import { Indexer, MemData } from "@0gfoundation/0g-storage-ts-sdk";
 import { ethers } from "ethers";
 import type { Decision, Policy } from "../core/types.js";
-import type { Store } from "./store.js";
+import type { AnchorRecord, Store } from "./store.js";
 
-export interface AnchorRecord {
-  rootHash: string;
-  txHash: string;
-}
+export type { AnchorRecord };
 
 interface UploadResultSingle {
   rootHash: string;
