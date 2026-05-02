@@ -5,7 +5,9 @@ description: Use when writing or reviewing Rust code in this repo. Covers the Ca
 
 # rust-backend-style
 
-The production backend is a Cargo workspace. The TypeScript code under `src/` is the conformance reference — Rust must produce identical JSON for the same inputs.
+> **Post-hackathon plan.** The May 3 2026 ETHGlobal submission ships TypeScript end-to-end (`src/` for the Fastify server, `web/` for the Astro frontend). This skill describes the planned Rust port that follows the hackathon — the Cargo workspace below is not yet present in the repo.
+
+The production backend (post-hackathon) is a Cargo workspace. The TypeScript code under `src/` is the conformance reference — Rust must produce identical JSON for the same inputs.
 
 ## Workspace layout
 

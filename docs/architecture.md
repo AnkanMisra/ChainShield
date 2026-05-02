@@ -1,8 +1,33 @@
 # ChainShield Agent — Architecture
 
-Concrete design for the ChainShield product, mapped onto the three sponsor APIs (0G, KeeperHub, Gensyn AXL). The production backend is **Rust** with a small **Solidity** onchain layer; the existing TypeScript code under `src/` is the Phase 1 reference scaffold that locks down the API contract.
+Concrete design for the ChainShield product, mapped onto the three sponsor APIs (0G, KeeperHub, Gensyn AXL).
 
-## Tech Stack
+## Current implementation (what's shipping for the May 3 hackathon)
+
+The hackathon submission is **TypeScript end-to-end**. The Rust + Solidity sections below describe the **post-hackathon** target architecture and remain the long-term home, but they are explicitly out of scope for the deadline.
+
+| Layer | Today | Future |
+|---|---|---|
+| Risk-gate HTTP server | Fastify 5 + `@fastify/cors` (`src/risk-gate/`) | Axum (`crates/risk-gate/`) |
+| Decision engine | `DecisionEngine` in `src/core/engine.ts` | `crates/engine/` |
+| Policy schema + validation | Zod (`src/core/schemas.ts`) | serde + custom validation |
+| Persistence | `InMemoryStore` (`src/memory/`) — 0G Storage adapter is the next gap | `crates/memory/` + 0G sidecar |
+| Onchain client | ethers v6 (declared, not wired) | `alloy` |
+| Simulation | **not implemented yet** — heuristic simulator is the next-up task | `revm` in-process |
+| KeeperHub | `KeeperHubRunner` in `src/playbooks/keeperhub.ts` against real `POST /api/workflow/{id}/execute` (singular path) — verified end-to-end with real `executionId` | same REST, ported to Rust later |
+| Notifications | `WebhookChannel` (Discord-shaped) + `CollectorChannel` in `src/playbooks/notifier.ts` | same traits, Rust impl |
+| 0G Inference | not implemented yet (HTTP wrapper planned) | reqwest + alloy headers |
+| Frontend | Astro 6 at `web/` (vanilla TS, no React/Vue), served on `:4321` in dev, builds to static `web/dist/` | unchanged |
+| Solidity onchain anchor | not implemented (out of hackathon scope) | Foundry project at `contracts/` |
+| AXL mesh | not implemented (out of hackathon scope) | three Rust binaries |
+
+Tests today: 37 passing across engine rules, policy service, API endpoints, KeeperHub runner, notification channels, and remediation flow.
+
+**The Rust + Solidity sections that follow describe the planned migration after submission.** They are referenced by the post-hackathon skills (`rust-backend-style`, `solidity-contracts`) and are not the current shipping code.
+
+---
+
+## Tech Stack (planned, post-hackathon)
 
 | Layer | Choice | Reason |
 |---|---|---|
@@ -325,7 +350,7 @@ impl PlaybookRunner for KeeperHubRunner {
         -> Result<PlaybookRun, PlaybookError>
     {
         let res = self.http
-            .post(format!("{}/api/workflows/{}/execute", self.base_url, playbook_id))
+            .post(format!("{}/api/workflow/{}/execute", self.base_url, playbook_id))
             .bearer_auth(&self.api_key)
             .json(&serde_json::json!({
                 "inputs": {
@@ -466,7 +491,7 @@ sequenceDiagram
     alt verdict == BLOCK
         C->>AXL: POST /send<br/>X-Destination: executor<br/>{kind: Remediation, decisionId, playbook}
         AXL->>E: GET /recv -> Remediation
-        E->>KH: POST /api/workflows/{id}/execute
+        E->>KH: POST /api/workflow/{id}/execute
         KH-->>E: { runId }
         E->>Z: append Decision
     else verdict == ALLOW or CONFIRM

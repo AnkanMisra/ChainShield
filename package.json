@@ -9,17 +9,25 @@
     "bun": ">=1.1.0"
   },
   "scripts": {
-    "dev": "bun run --watch src/risk-gate/server.ts",
+    "dev": "bash scripts/dev.sh",
+    "dev:server": "bun run --watch src/risk-gate/server.ts",
+    "dev:web": "cd web && bun run dev",
     "start": "bun run src/risk-gate/server.ts",
-    "build": "bun build ./src/risk-gate/server.ts --outdir ./dist --target bun --minify",
+    "build": "bun run build:server && bun run build:web",
+    "build:server": "bun build ./src/risk-gate/server.ts --outdir ./dist --target bun --minify",
+    "build:web": "cd web && bun run build",
     "start:bundle": "bun run dist/server.js",
-    "typecheck": "tsc --noEmit",
+    "preview:web": "cd web && bun run preview",
+    "typecheck": "bun run typecheck:server && bun run typecheck:web",
+    "typecheck:server": "tsc --noEmit",
+    "typecheck:web": "cd web && bunx --bun astro check",
     "test": "bun test",
     "test:watch": "bun test --watch",
     "test:coverage": "bun test --coverage",
-    "clean": "rm -rf dist coverage .tsbuildinfo"
+    "clean": "rm -rf dist coverage .tsbuildinfo web/dist web/.astro"
   },
   "dependencies": {
+    "@fastify/cors": "^11.2.0",
     "ethers": "^6.13.4",
     "fastify": "^5.1.0",
     "zod": "^3.23.8"

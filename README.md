@@ -21,31 +21,35 @@ flowchart LR
 
 ## Project status
 
-| Phase | Scope | Status |
+Submission target: **Sun May 3 2026 night** (ETHGlobal OpenAgents).
+
+| Item | Status | Where |
 |---|---|---|
-| Day 1 — Foundation | policy schema, decision engine, risk-gate API, in-memory store | done (TypeScript scaffold) |
-| Day 2 — Actionability | tx simulation, threat scoring, KeeperHub playbooks, notifications | next (Rust) |
-| Day 3 — Demo readiness | timeline UI, full explainability, attack scenarios, demo polish | pending |
+| Policy schema, decision engine (5 deterministic rules), risk-gate API, in-memory store | done | merged into `sponsor-features` (PR #1) |
+| Validation hardening: `PolicyOwnerMismatch`, byte-aligned hex, scientific-notation cap, forbidden-selector short-circuit | done | merged |
+| KeeperHub REST runner (`/api/workflow/:id/execute`), Mock fallback, error sanitization | done | PR #2, mergeable |
+| Notification channels (Discord webhook, in-process Collector) | done | PR #2 |
+| Engine wiring: `policy.remediation.onBlock` + `notifyChannels` (both rule-paths fire playbooks) | done | PR #2 |
+| Astro frontend at `web/` (editorial-dispatch design, vanilla TS, components + lib modules) | done | PR #3, mergeable |
+| `@fastify/cors`, parallel `bun run dev` via `scripts/dev.sh` | done | PR #3 |
+| `kh.sh` REST CLI helper, JSON modal with copy-to-clipboard, onBlock form field | done | PR #2 + #3 |
+| Heuristic transaction simulator (calldata decode + balance projection + revert escalation) | **not started** | next |
+| 0G Storage adapter (replaces `InMemoryStore` for persistent timeline) | not started | day 5 |
+| 0G Inference (LLM reflection + TEE attestation) | not started | stretch |
+| CLI demo runner that fires the 4 scenes deterministically | not started | day 5 |
+| 3–5 min demo recording + one-pager submission writeup | not started | day 5 |
 
-Current branch `feature/chainshield-mvp` ships a working risk gate with a browser UI, 13 passing tests, and Docker support.
+**Tests:** 37/37 passing. Real KeeperHub fires real `executionId` end-to-end through the Astro → CORS → Fastify → KeeperHub stack.
 
-## Backend direction
+**Cut from scope** (post-hackathon work): AXL three-binary mesh, Solidity `PolicyAnchor` / `EmergencyVault`, full Rust workspace port.
 
-The bulk of the production backend will be written in **Rust**:
+## Backend direction (post-hackathon)
 
-- decision engine (the deterministic policy evaluator)
-- transaction simulator (REVM-based)
-- sponsor adapters (KeeperHub, Gensyn AXL, and 0G where the SDK story allows)
-- risk-gate HTTP server (Axum)
+After the hackathon ships, the bulk of the production backend is planned to move to **Rust** (`axum`, `revm`, `alloy`) with a small **Solidity** onchain layer (`PolicyAnchor`, optional `EmergencyVault`). The current TypeScript implementation under `src/` locks down the API contract, the policy schema, and the rule semantics — the Rust port reuses the JSON shapes (`Policy`, `TxIntent`, `Decision`) verbatim so `web/` and the existing `tests/` specs remain a black-box conformance suite.
 
-A small **Solidity** onchain layer will anchor policies and emit events that KeeperHub workflows can subscribe to:
+The frontend lives in [`web/`](./web) as an **Astro** project (vanilla TypeScript islands, no React/Vue). It calls the Fastify API cross-origin in dev (Astro on `:4321`, Fastify on `:8787`) and ships as static HTML+JS in `web/dist/` for production.
 
-- `PolicyAnchor` contract: records `(owner, policyHash, version)` and emits `PolicyUpdated`
-- optional `EmergencyVault` contract: timelocked safe destination used by the `safe-vault-evac` playbook
-
-The current TypeScript implementation under `src/` is a **reference scaffold** that locks down the API contract, the policy schema, and the rule semantics. The Rust port reuses the JSON shapes (`Policy`, `TxIntent`, `Decision`) verbatim so the browser UI and the existing `tests/` specs remain a black-box conformance suite. Browser UI stays as a single static HTML file regardless of which backend serves it.
-
-See [`docs/architecture.md`](./docs/architecture.md) for the Rust workspace layout, the onchain contract sketches, and the migration order.
+See [`docs/architecture.md`](./docs/architecture.md) for the current implementation, the planned Rust workspace layout, and the migration order.
 
 ## Requirements
 
@@ -82,29 +86,41 @@ forge --version
 ## Quick start with Bun
 
 ```sh
+# install root deps (server) and web deps (Astro)
 bun install
+bun install --cwd web
+
+# start both: Fastify API on :8787, Astro on :4321
 bun run dev
-# open http://127.0.0.1:8787
+
+# open the UI
+open http://127.0.0.1:4321
 ```
 
-That's it. The `dev` script auto-reloads on every file change.
+The `dev` script (a small `scripts/dev.sh`) starts both processes with prefixed log output. Hit Ctrl+C in the terminal to stop both.
 
 ### All Bun commands
 
 | Command | What it does |
 |---|---|
-| `bun install` | Install dependencies from `bun.lock`. |
-| `bun install --frozen-lockfile` | CI-style install — fails if the lockfile would change. |
-| `bun install --production` | Install runtime dependencies only (skips `@types/bun`, `typescript`). |
-| `bun run dev` | Start the risk-gate server with file watching on `127.0.0.1:8787`. |
-| `bun run start` | Start the server **without** watching (use this for production runs). |
-| `bun run build` | Bundle and minify the server to `./dist/server.js`. |
-| `bun run start:bundle` | Run the bundled output from `./dist`. |
-| `bun run typecheck` | Strict `tsc --noEmit` — must exit 0 before commits. |
-| `bun test` | Run the full test suite (13 specs, ~150ms). |
-| `bun test --watch` | Re-run tests on file change. |
-| `bun run test:coverage` | Run tests with v8 coverage report. |
-| `bun run clean` | Remove `dist/`, `coverage/`, `.tsbuildinfo`. |
+| `bun install` | Install root (server) deps from `bun.lock`. |
+| `bun install --cwd web` | Install Astro frontend deps in `web/`. |
+| `bun run dev` | Start **both**: Fastify on `:8787` + Astro on `:4321`, prefixed logs. |
+| `bun run dev:server` | Just the Fastify server (with `--watch`). |
+| `bun run dev:web` | Just the Astro frontend. |
+| `bun run start` | Start the server only, no watcher. |
+| `bun run build` | Build both: server → `dist/`, Astro → `web/dist/`. |
+| `bun run build:server` | Bundle and minify the server only. |
+| `bun run build:web` | Build the Astro static output only. |
+| `bun run preview:web` | Preview the built Astro output locally. |
+| `bun run start:bundle` | Run the bundled server from `dist/`. |
+| `bun run typecheck` | Run both: `tsc` for the server + `astro check` for the web. |
+| `bun run typecheck:server` | Just the server typecheck. |
+| `bun run typecheck:web` | Just the Astro check. |
+| `bun test` | Run the server test suite (`bun:test`, 32 specs). |
+| `bun test --watch` | Re-run server tests on file change. |
+| `bun run test:coverage` | Server tests with v8 coverage. |
+| `bun run clean` | Remove `dist/`, `coverage/`, `.tsbuildinfo`, `web/dist/`, `web/.astro/`. |
 
 ### Bun environment overrides
 
@@ -121,11 +137,13 @@ A full list of variables lives in `.env.example`. None are required for the Phas
 
 ## Quick start with Docker
 
+The Docker image is **server-only** for now — the Astro frontend ships separately as static files (deploy to Vercel, Netlify, Cloudflare Pages, or serve `web/dist` from any static host). A future revision will multi-stage the Astro build and serve `web/dist` from Fastify via `@fastify/static`.
+
 ```sh
-# build and run in one step
+# build and run the API
 docker compose up --build
 
-# open http://127.0.0.1:8787
+# open http://127.0.0.1:8787/health to confirm
 ```
 
 To stop: `docker compose down`.
@@ -199,39 +217,41 @@ Inside the container the server always listens on `0.0.0.0:8787` (set via `HOST`
 
 ---
 
-## Verify the server is up
+## Verify the stack is up
 
-After either path, hit the health endpoint:
+After `bun run dev`, hit the health endpoint:
 
 ```sh
 curl http://127.0.0.1:8787/health
 # {"status":"ok"}
 ```
 
-Then open the UI at <http://127.0.0.1:8787>.
+Open the **Astro UI** at <http://127.0.0.1:4321>. (The Fastify server on `:8787` is API-only after the Astro migration; it no longer serves HTML.)
 
 ---
 
 ## Environment variables
 
-Copy `.env.example` to `.env` and fill in only what you need (none required for the current Phase-1 in-memory build):
+Copy `.env.example` to `.env.local` (gitignored, auto-loaded by Bun) and fill in what you need:
 
-| Variable | Purpose | Phase |
+| Variable | Purpose | Required for |
 |---|---|---|
-| `PORT` | Risk-gate listen port (default `8787`) | 1 |
-| `HOST` | Listen host (default `127.0.0.1`; container default `0.0.0.0`) | 1 |
-| `ZERO_G_RPC_URL` | 0G Galileo RPC endpoint | 2 |
-| `ZERO_G_PRIVATE_KEY` | Wallet for 0G storage + inference | 2 |
-| `ZERO_G_INFERENCE_PROVIDER` | Provider address for `qwen-2.5-7b-instruct` | 2 |
-| `KEEPERHUB_API_URL` | Default `https://app.keeperhub.com` | 2 |
-| `KEEPERHUB_API_KEY` | API key for playbook execution | 2 |
-| `AXL_BASE_URL` | Local Gensyn AXL bridge (default `http://127.0.0.1:9002`) | 2+ |
+| `PORT` | Risk-gate listen port (default `8787`) | always |
+| `HOST` | Listen host (default `127.0.0.1`; container default `0.0.0.0`) | always |
+| `WEB_ORIGIN` | Comma-separated CORS origins (default `http://127.0.0.1:4321,http://localhost:4321`) | Astro frontend |
+| `KEEPERHUB_API_URL` | Default `https://app.keeperhub.com` | KeeperHub remediation |
+| `KEEPERHUB_API_KEY` | Bearer token from app.keeperhub.com → API Keys → Organisation. Without it the engine uses the in-process `MockRunner`. | KeeperHub remediation |
+| `NOTIFY_DISCORD_WEBHOOK` | Discord webhook URL. When set, a `discord` channel is auto-registered. | Discord notifications (optional) |
+| `ZERO_G_RPC_URL` | 0G Galileo RPC endpoint | 0G storage / inference (not yet wired) |
+| `ZERO_G_PRIVATE_KEY` | Funded testnet wallet | 0G storage / inference (not yet wired) |
+| `ZERO_G_INFERENCE_PROVIDER` | Provider address for `qwen-2.5-7b-instruct` | 0G inference (not yet wired) |
+| `AXL_BASE_URL` | Local Gensyn AXL bridge (default `http://127.0.0.1:9002`) | mesh (post-hackathon) |
 
 ---
 
 ## Browser walkthrough
 
-Once the server is up, http://127.0.0.1:8787 renders a single-page UI with three sections.
+Once `bun run dev` is running, open <http://127.0.0.1:4321> (the Astro frontend; not 8787 which is API-only). The page has three sections.
 
 ### 1. Policies
 
@@ -242,6 +262,7 @@ Once the server is up, http://127.0.0.1:8787 renders a single-page UI with three
 | **Max daily outflow (ETH)** | A decimal number (e.g. `3`) | 24h rolling cap. Above → `BLOCK` (risk 88). |
 | **Allowed destinations** | Comma-separated `0x` addresses (e.g. `0x2222...,0x3333...`) | Off-list → `REQUIRE_HUMAN_CONFIRMATION` (risk 60). Empty → no allowlist enforcement. |
 | **Forbidden selectors** | Comma-separated 4-byte selectors (e.g. `0x095ea7b3,0x23b872dd`) | Match → `BLOCK` (risk 95). Common: `0x095ea7b3` ERC-20 `approve`, `0x23b872dd` `transferFrom`, `0xa9059cbb` `transfer`. |
+| **Playbook IDs to fire on BLOCK** | Comma-separated KeeperHub workflow IDs (e.g. `8c12ujo1ax7b93w21updd`) | When verdict is `BLOCK`, the engine attempts each ID in order until one succeeds. Empty → no remediation. Run `./scripts/kh.sh list` to see your real workflow IDs. |
 
 **Shortcut:** click **Quick demo** to auto-create a sample policy (`maxTransferEth=1`, `maxDailyOutflowEth=3`, allowlist `[0x2222…2222]`, forbidden `[0x095ea7b3]`).
 

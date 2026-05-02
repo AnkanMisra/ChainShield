@@ -6,11 +6,11 @@ Project conventions and pointers for AI coding agents (and humans) working in th
 
 ChainShield Agent: a policy-bound risk gate for onchain treasuries and wallets. The server accepts a transaction intent, evaluates it against deterministic rules plus (eventually) simulation and LLM reflection, and returns one of three verdicts: `ALLOW`, `REQUIRE_HUMAN_CONFIRMATION`, or `BLOCK`. Every decision is appended to an incident timeline.
 
-Built for ETHGlobal OpenAgents 2026. Sponsor integrations planned: 0G (storage + inference), KeeperHub (remediation playbooks), Gensyn AXL (multi-agent mesh).
+Built for ETHGlobal OpenAgents 2026 (deadline: Sun May 3 2026 night). Active sponsor integration: KeeperHub (remediation playbooks, real REST against `/api/workflow/:id/execute`). Planned: 0G (storage + inference). Cut for hackathon: Gensyn AXL mesh, Solidity contracts, Rust port.
 
 ## Tech stack
 
-The production backend is moving to **Rust + a small Solidity layer**. The current TypeScript code is a reference scaffold that locks down the API contract and ships the demo browser UI; it is not a long-term home for the engine.
+The production backend is planned to move to **Rust + a small Solidity layer** post-hackathon. The current ship is **TypeScript end-to-end**: Fastify server in `src/`, Astro frontend in `web/`. Tests cover the engine, policy service, API, KeeperHub runner, notification channels, and the remediation flow.
 
 ### Rust (Phase 2+, primary)
 
@@ -30,38 +30,67 @@ The production backend is moving to **Rust + a small Solidity layer**. The curre
 - Compiler: 0.8.24+
 - Style: OpenZeppelin imports where available
 
-### TypeScript (Phase 1 scaffold, Bun-hosted)
+### TypeScript server (Phase 1 scaffold, Bun-hosted)
 
 - Runtime: Bun 1.3 (single tool for install, run, test, build)
 - Language: TypeScript with strict mode
-- HTTP: Fastify 5
+- HTTP: Fastify 5 + `@fastify/cors`
 - Validation: Zod
 - Onchain: ethers v6
 - Tests: `bun:test`
-- Containerization: Docker (multi-stage on `oven/bun:1.3-alpine`)
+- Containerization: Docker (multi-stage on `oven/bun:1.3-alpine`) — server-only image; the Astro frontend ships separately
 
-The TS scaffold is the conformance test suite for the Rust port: same JSON shapes, same verdict ladder, same UI.
+The TS server is the conformance test suite for the Rust port: same JSON shapes, same verdict ladder, same UI.
+
+### Frontend (Astro, lives in `web/`)
+
+- Framework: Astro 6 (vanilla TS, no React/Vue)
+- Output: static (`astro build` emits HTML+JS to `web/dist`)
+- Dev server: Vite-backed, port 4321
+- Type checking: `astro check` via `@astrojs/check`
+- API access: cross-origin fetch to `http://127.0.0.1:8787` in dev (CORS allowed); same-origin in prod
+- Components are presentational (`.astro` files); all interactivity lives in `web/src/lib/*.ts` modules invoked from `web/src/scripts/main.ts`
+- Buttons use `data-action="…"` attributes wired up in `main.ts` — no inline `onclick` handlers
 
 ## Run, test, build
 
-### TypeScript scaffold (current)
+### Today (TypeScript server + Astro frontend)
 
 ```sh
-bun install                # install deps from bun.lock
-bun run dev                # start risk-gate server with watch on 127.0.0.1:8787
-bun run start              # production-style boot (no watch)
-bun test                   # 13 specs, ~150ms
+# install both
+bun install                # root (server)
+bun install --cwd web      # web (Astro)
+
+# develop: starts both processes in parallel
+bun run dev                # server on :8787, web on :4321 (open http://127.0.0.1:4321)
+
+# develop one at a time
+bun run dev:server         # just the Fastify server
+bun run dev:web            # just the Astro frontend
+
+# tests (server only)
+bun test                   # 37 specs, ~170ms
 bun run test:coverage      # v8 coverage report
-bun run typecheck          # tsc --noEmit, must exit 0
-bun run build              # bundle to ./dist/server.js
-bun run start:bundle       # run the bundled output
-bun run clean              # remove dist/, coverage/, .tsbuildinfo
+
+# type checks
+bun run typecheck          # both: server + web
+bun run typecheck:server   # tsc --noEmit
+bun run typecheck:web      # cd web && astro check
+
+# production build
+bun run build              # both: dist/server.js + web/dist/
+bun run start:bundle       # run the bundled server
+bun run preview:web        # preview the Astro static output
+
+# cleanup
+bun run clean              # remove dist/, coverage/, web/dist/, web/.astro/
 ```
 
 Docker path:
 
 ```sh
-docker compose up --build  # builds and runs on host port 8787
+docker compose up --build  # builds and runs the server on host port 8787
+                            # the Astro frontend ships separately as static files
 ```
 
 ### Rust workspace (planned, Phase 2+)
@@ -86,15 +115,23 @@ forge script script/Deploy.s.sol --broadcast --rpc-url galileo
 
 ## Where things live
 
-### Today (TypeScript scaffold)
+### Today (TypeScript server + Astro frontend)
 
 - `src/core/` — types, Zod schemas, policy service, decision engine, EVM selector helpers
 - `src/memory/` — `Store` interface and the in-memory implementation
-- `src/risk-gate/` — Fastify app and server entrypoint
-- `tests/` — `bun:test` specs covering engine rules, policy service, and the API
-- `public/index.html` — single-page browser UI served at `/`
+- `src/playbooks/` — `PlaybookRunner` interface + `KeeperHubRunner` + `MockRunner` + notification channels
+- `src/risk-gate/` — Fastify app + server entrypoint (CORS-enabled for the Astro origin)
+- `tests/` — `bun:test` specs covering engine rules, policy service, API, runners, and remediation flow
+- `web/` — Astro project (frontend)
+  - `web/src/pages/index.astro` — composes the page, imports `main.ts`
+  - `web/src/layouts/Layout.astro` — global shell, fonts, body
+  - `web/src/components/` — `Masthead`, `Hero`, `PolicySection`, `EvaluateSection`, `TimelineSection`, `JsonModal`
+  - `web/src/styles/global.css` — the entire design system
+  - `web/src/lib/` — typed TS modules: `types`, `api`, `format`, `modal`, `policies`, `evaluate`, `timeline`
+  - `web/src/scripts/main.ts` — single entry: ticks the clock, wires `data-action` listeners, kicks off initial loads
+- `scripts/` — shell helpers: `dev.sh` (parallel dev), `kh.sh` (KeeperHub REST CLI)
 - `docs/` — architecture, product story, sponsor research
-- `.claude/skills/` — reusable agent skills for repeated tasks
+- `.claude/skills/` — reusable agent skills
 
 ### Planned (Rust + Solidity, Phase 2+)
 
