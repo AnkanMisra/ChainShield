@@ -21,13 +21,16 @@ flowchart LR
 
 ## Project status
 
-| Phase | Scope | Status |
-|---|---|---|
-| Day 1 — Foundation | policy schema, decision engine, risk-gate API, in-memory store | done (TypeScript scaffold) |
-| Day 2 — Actionability | tx simulation, threat scoring, KeeperHub playbooks, notifications | next (Rust) |
-| Day 3 — Demo readiness | timeline UI, full explainability, attack scenarios, demo polish | pending |
+| Phase | Scope | Status | PR |
+|---|---|---|---|
+| 1 — Foundation | policy schema, decision engine, risk-gate API, in-memory store, browser UI, Docker | merged | #1 |
+| 2 — Actionability | KeeperHub playbook runner + notification channels, JSON modal, error hardening | open (ready) | #2 |
+| 3 — Astro frontend | port browser UI to Astro at `web/`, CORS, parallel dev script | open (ready) | #3 |
+| 4 — Simulator | heuristic ERC-20 simulator, revert-based verdict escalation | open (ready) | #4 |
+| 5 — Demo CLI | `bun run demo` driving the four canonical scenes against the live API | open (ready) | #5 |
+| 6 — 0G Storage | anchor policies + decisions on Galileo testnet, surface `rootHash` in API + UI | open (draft) | #6 |
 
-Current branch `feature/chainshield-mvp` ships a working risk gate with a browser UI, 13 passing tests, and Docker support.
+68 tests passing across 9 files · TypeScript strict typecheck clean · Bun 1.3 toolchain · live SDK probe confirmed Galileo storage indexer reachability.
 
 ## Backend direction
 
@@ -115,7 +118,7 @@ PORT=8788 HOST=0.0.0.0 bun run dev          # bind to all interfaces on port 878
 PORT=9000 bun run start                      # production-style boot on port 9000
 ```
 
-A full list of variables lives in `.env.example`. None are required for the Phase-1 build.
+A full list of variables lives in `.env.example`. None are required for a local in-memory boot.
 
 ---
 
@@ -214,18 +217,20 @@ Then open the UI at <http://127.0.0.1:8787>.
 
 ## Environment variables
 
-Copy `.env.example` to `.env` and fill in only what you need (none required for the current Phase-1 in-memory build):
+Copy `.env.example` to `.env.local` and fill in only what you need. The server boots without any of these — opting into a sponsor adapter just enables the corresponding code path.
 
-| Variable | Purpose | Phase |
-|---|---|---|
-| `PORT` | Risk-gate listen port (default `8787`) | 1 |
-| `HOST` | Listen host (default `127.0.0.1`; container default `0.0.0.0`) | 1 |
-| `ZERO_G_RPC_URL` | 0G Galileo RPC endpoint | 2 |
-| `ZERO_G_PRIVATE_KEY` | Wallet for 0G storage + inference | 2 |
-| `ZERO_G_INFERENCE_PROVIDER` | Provider address for `qwen-2.5-7b-instruct` | 2 |
-| `KEEPERHUB_API_URL` | Default `https://app.keeperhub.com` | 2 |
-| `KEEPERHUB_API_KEY` | API key for playbook execution | 2 |
-| `AXL_BASE_URL` | Local Gensyn AXL bridge (default `http://127.0.0.1:9002`) | 2+ |
+| Variable | Purpose | Default | Status |
+|---|---|---|---|
+| `PORT` | Risk-gate listen port | `8787` | wired |
+| `HOST` | Listen host (container default `0.0.0.0`) | `127.0.0.1` | wired |
+| `KEEPERHUB_API_URL` | KeeperHub base URL | `https://app.keeperhub.com` | wired (Phase 2) |
+| `KEEPERHUB_API_KEY` | KeeperHub workflow execution key | — | wired (Phase 2) |
+| `NOTIFY_DISCORD_WEBHOOK` | Discord webhook for `discord` notify channel | — | wired (Phase 2) |
+| `ZERO_G_RPC_URL` | 0G Galileo EVM RPC | `https://evmrpc-testnet.0g.ai` | wired (Phase 6) |
+| `ZERO_G_INDEXER_RPC` | 0G storage indexer | `https://indexer-storage-testnet-turbo.0g.ai` | wired (Phase 6) |
+| `ZERO_G_PRIVATE_KEY` | Wallet for 0G storage anchor signing (needs faucet funding) | — | wired (Phase 6) |
+| `ZERO_G_INFERENCE_PROVIDER` | 0G Compute provider address (discovered at runtime) | — | stub (stretch) |
+| `AXL_BASE_URL` | Gensyn AXL bridge | `http://127.0.0.1:9002` | stub (de-scoped) |
 
 ---
 

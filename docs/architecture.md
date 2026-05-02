@@ -304,7 +304,7 @@ flowchart TD
     PB -- no --> End
 ```
 
-The TypeScript scaffold today implements steps 1-4 and 7. Steps 5, 6, and 8 are added in the Rust port during Phase 2.
+The TypeScript scaffold today implements steps 1-5, 7, 8 and the 0G Storage half of the persistence layer (anchors policy + decision JSON onchain via `@0gfoundation/0g-storage-ts-sdk`). Step 6 (0G Inference reflection) is the remaining hackathon stretch, and the Rust port lifts everything into a single language during Phase 2.
 
 ## Sponsor Integration — Rust entry points
 
