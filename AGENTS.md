@@ -6,11 +6,11 @@ Project conventions and pointers for AI coding agents (and humans) working in th
 
 ChainShield Agent: a policy-bound risk gate for onchain treasuries and wallets. The server accepts a transaction intent, evaluates it against deterministic rules plus (eventually) simulation and LLM reflection, and returns one of three verdicts: `ALLOW`, `REQUIRE_HUMAN_CONFIRMATION`, or `BLOCK`. Every decision is appended to an incident timeline.
 
-Built for ETHGlobal OpenAgents 2026. Sponsor integrations planned: 0G (storage + inference), KeeperHub (remediation playbooks), Gensyn AXL (multi-agent mesh).
+Built for ETHGlobal OpenAgents 2026 (deadline: Sun May 3 2026 night). Active sponsor integration: KeeperHub (remediation playbooks, real REST against `/api/workflow/:id/execute`). Planned: 0G (storage + inference). Cut for hackathon: Gensyn AXL mesh, Solidity contracts, Rust port.
 
 ## Tech stack
 
-The production backend is moving to **Rust + a small Solidity layer**. The current TypeScript code is a reference scaffold that locks down the API contract and ships the demo browser UI; it is not a long-term home for the engine.
+The production backend is planned to move to **Rust + a small Solidity layer** post-hackathon. The current ship is **TypeScript end-to-end**: Fastify server in `src/`, Astro frontend in `web/`. Tests cover the engine, policy service, API, KeeperHub runner, notification channels, and the remediation flow.
 
 ### Rust (Phase 2+, primary)
 
@@ -69,7 +69,7 @@ bun run dev:server         # just the Fastify server
 bun run dev:web            # just the Astro frontend
 
 # tests (server only)
-bun test                   # 32 specs, ~200ms
+bun test                   # 37 specs, ~170ms
 bun run test:coverage      # v8 coverage report
 
 # type checks
