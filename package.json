@@ -13,6 +13,7 @@
     "start": "bun run src/risk-gate/server.ts",
     "build": "bun build ./src/risk-gate/server.ts --outdir ./dist --target bun --minify",
     "start:bundle": "bun run dist/server.js",
+    "demo": "bun run src/cli/demo.ts",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "test:watch": "bun test --watch",
