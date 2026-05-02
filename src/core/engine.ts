@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { Decision, Policy, TxIntent, Verdict } from "./types.js";
 import { ERC20_APPROVE, decodeUint256, selectorOf } from "./selectors.js";
 import type { Store } from "../memory/store.js";
+import type { NotificationChannel, PlaybookRunner } from "../playbooks/runner.js";
 
 const ETH_DECIMALS = 18n;
 const WEI_PER_ETH = 10n ** ETH_DECIMALS;
@@ -33,26 +34,27 @@ function ethToWei(eth: number): bigint {
   return BigInt(whole ?? "0") * WEI_PER_ETH + BigInt(padded || "0");
 }
 
-async function persistDecision(store: Store, decision: Decision): Promise<Decision> {
-  await store.appendDecision(decision);
-  return decision;
-}
-
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface DecisionEngineOptions {
   store: Store;
+  playbookRunner?: PlaybookRunner;
+  notificationChannels?: Record<string, NotificationChannel>;
   now?: () => number;
   idGen?: () => string;
 }
 
 export class DecisionEngine {
   private readonly store: Store;
+  private readonly runner: PlaybookRunner | undefined;
+  private readonly channels: Record<string, NotificationChannel>;
   private readonly now: () => number;
   private readonly idGen: () => string;
 
   constructor(opts: DecisionEngineOptions) {
     this.store = opts.store;
+    this.runner = opts.playbookRunner;
+    this.channels = opts.notificationChannels ?? {};
     this.now = opts.now ?? (() => Date.now());
     this.idGen = opts.idGen ?? randomUUID;
   }
@@ -73,7 +75,7 @@ export class DecisionEngine {
       rulesMatched.push("forbiddenSelectors");
       reasons.push(`Selector ${selector} is on the forbidden list.`);
 
-      return persistDecision(this.store, {
+      const earlyDecision: Decision = {
         id: this.idGen(),
         intent,
         verdict,
@@ -82,7 +84,9 @@ export class DecisionEngine {
         reasons,
         policyId: policy.id,
         timestamp: this.now(),
-      });
+      };
+      await this.handleRemediation(earlyDecision, policy);
+      return this.persist(earlyDecision);
     }
 
     const valueWei = BigInt(intent.value);
@@ -163,6 +167,45 @@ export class DecisionEngine {
       timestamp: this.now(),
     };
 
-    return persistDecision(this.store, decision);
+    if (decision.verdict === "BLOCK") {
+      await this.handleRemediation(decision, policy);
+    }
+
+    return this.persist(decision);
+  }
+
+  private async persist(decision: Decision): Promise<Decision> {
+    await this.store.appendDecision(decision);
+    return decision;
+  }
+
+  private async handleRemediation(decision: Decision, policy: Policy): Promise<void> {
+    const playbookIds = policy.remediation.onBlock ?? [];
+    if (this.runner && playbookIds.length > 0) {
+      for (const id of playbookIds) {
+        try {
+          decision.playbookTriggered = await this.runner.run(id, decision, policy);
+          break;
+        } catch (err) {
+          const raw = err instanceof Error ? err.message : String(err);
+          const safe = raw.replace(/\s+/g, " ").trim().slice(0, 256);
+          decision.reasons.push(`Playbook ${id} failed: ${safe}`);
+        }
+      }
+    }
+
+    const channelNames = policy.remediation.notifyChannels ?? [];
+    for (const name of channelNames) {
+      const channel = this.channels[name];
+      if (!channel) continue;
+      try {
+        await channel.notify(
+          `BLOCK on policy ${policy.id}: ${decision.reasons.join(" ")}`,
+          decision,
+        );
+      } catch {
+        // notification failures are not allowed to affect the verdict or persistence
+      }
+    }
   }
 }
