@@ -1,6 +1,8 @@
 import { buildApp } from "./app.js";
 import { DecisionEngine } from "../core/engine.js";
 import { InMemoryStore } from "../memory/memoryStore.js";
+import { ZeroGStore } from "../memory/zeroGStore.js";
+import type { Store } from "../memory/store.js";
 import { PolicyService } from "../core/policyService.js";
 import { KeeperHubRunner } from "../playbooks/keeperhub.js";
 import { MockRunner } from "../playbooks/runner.js";
@@ -11,7 +13,18 @@ import { HeuristicSimulator } from "../simulator/heuristic.js";
 const port = Number(process.env.PORT ?? 8787);
 const host = process.env.HOST ?? "127.0.0.1";
 
-const store = new InMemoryStore();
+let store: Store;
+const zeroGKey = process.env.ZERO_G_PRIVATE_KEY;
+if (zeroGKey && zeroGKey.length > 0) {
+  const rpcUrl = process.env.ZERO_G_RPC_URL?.trim() || "https://evmrpc-testnet.0g.ai";
+  const indexerRpc =
+    process.env.ZERO_G_INDEXER_RPC?.trim() || "https://indexer-storage-testnet-turbo.0g.ai";
+  store = new ZeroGStore({ rpcUrl, indexerRpc, privateKey: zeroGKey });
+  console.log(`[chainshield] store: 0G anchor (rpc=${rpcUrl}, indexer=${indexerRpc})`);
+} else {
+  store = new InMemoryStore();
+  console.log("[chainshield] store: in-memory (set ZERO_G_PRIVATE_KEY to anchor writes on 0G testnet)");
+}
 
 let runner: PlaybookRunner;
 const apiKey = process.env.KEEPERHUB_API_KEY;
