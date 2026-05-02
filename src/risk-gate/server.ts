@@ -6,6 +6,7 @@ import { KeeperHubRunner } from "../playbooks/keeperhub.js";
 import { MockRunner } from "../playbooks/runner.js";
 import { CollectorChannel, WebhookChannel } from "../playbooks/notifier.js";
 import type { NotificationChannel, PlaybookRunner } from "../playbooks/runner.js";
+import { HeuristicSimulator } from "../simulator/heuristic.js";
 
 const port = Number(process.env.PORT ?? 8787);
 const host = process.env.HOST ?? "127.0.0.1";
@@ -31,7 +32,15 @@ if (process.env.NOTIFY_DISCORD_WEBHOOK) {
   console.log("[chainshield] notification channel: discord webhook");
 }
 
-const engine = new DecisionEngine({ store, playbookRunner: runner, notificationChannels: channels });
+const simulator = new HeuristicSimulator();
+console.log("[chainshield] simulator: heuristic (calldata decode + balance projection)");
+
+const engine = new DecisionEngine({
+  store,
+  simulator,
+  playbookRunner: runner,
+  notificationChannels: channels,
+});
 const policyService = new PolicyService(store);
 
 const app = buildApp({ store, engine, policyService });
