@@ -111,13 +111,21 @@ export class ZeroGStore implements Store {
         return null;
       }
       if ("rootHash" in result) {
+        if (!result.rootHash) {
+          this.logger.warn(`[zeroG] anchor ${label} returned empty rootHash; skipping`);
+          return null;
+        }
         this.logger.log(`[zeroG] anchored ${label} root=${result.rootHash}`);
         return { rootHash: result.rootHash, txHash: result.txHash };
       }
-      const rootHash = result.rootHashes[0] ?? "";
-      const txHash = result.txHashes[0] ?? "";
+      const rootHash = result.rootHashes[0];
+      const txHash = result.txHashes[0];
+      if (!rootHash) {
+        this.logger.warn(`[zeroG] anchor ${label} returned empty multi-result; skipping`);
+        return null;
+      }
       this.logger.log(`[zeroG] anchored ${label} (multi) root=${rootHash}`);
-      return { rootHash, txHash };
+      return { rootHash, txHash: txHash ?? "" };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       this.logger.warn(`[zeroG] anchor ${label} threw: ${msg}`);

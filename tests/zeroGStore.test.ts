@@ -189,6 +189,51 @@ describe("ZeroGStore", () => {
     expect(warned).toBe(true);
   });
 
+  it("skips the anchor when the indexer returns an empty rootHash", async () => {
+    const indexer = {
+      upload: async (): Promise<[unknown, Error | null]> => [
+        { rootHash: "", txHash: "", txSeq: 0 },
+        null,
+      ],
+    } as unknown as NonNullable<MockIndexer>;
+    const { logger, calls } = silentLogger();
+    const store = new ZeroGStore({
+      rpcUrl: "http://rpc",
+      indexerRpc: "http://indexer",
+      signer: fakeSigner,
+      indexer,
+      logger,
+    });
+    await store.putPolicy(makePolicy({ id: "pe" }));
+    expect(await store.getPolicy("pe")).not.toBeNull();
+    expect(store.getAnchor("pe")).toBeUndefined();
+    expect(
+      calls.some((c) => c.level === "warn" && c.msg.includes("empty rootHash")),
+    ).toBe(true);
+  });
+
+  it("skips the anchor when the indexer returns an empty multi-result", async () => {
+    const indexer = {
+      upload: async (): Promise<[unknown, Error | null]> => [
+        { rootHashes: [], txHashes: [], txSeqs: [] },
+        null,
+      ],
+    } as unknown as NonNullable<MockIndexer>;
+    const { logger, calls } = silentLogger();
+    const store = new ZeroGStore({
+      rpcUrl: "http://rpc",
+      indexerRpc: "http://indexer",
+      signer: fakeSigner,
+      indexer,
+      logger,
+    });
+    await store.appendDecision(makeDecision({ id: "de" }));
+    expect(store.getAnchor("de")).toBeUndefined();
+    expect(
+      calls.some((c) => c.level === "warn" && c.msg.includes("empty multi-result")),
+    ).toBe(true);
+  });
+
   it("requires a privateKey when no signer is provided", () => {
     expect(() =>
       new ZeroGStore({
