@@ -4,6 +4,7 @@ import { ERC20_APPROVE, decodeUint256, selectorOf } from "./selectors.js";
 import type { Store } from "../memory/store.js";
 import type { NotificationChannel, PlaybookRunner } from "../playbooks/runner.js";
 import type { Simulator } from "../simulator/simulator.js";
+import type { GossipTransport } from "../transport/axlGossip.js";
 
 const ETH_DECIMALS = 18n;
 const WEI_PER_ETH = 10n ** ETH_DECIMALS;
@@ -51,6 +52,7 @@ export interface DecisionEngineOptions {
   simulator?: Simulator;
   playbookRunner?: PlaybookRunner;
   notificationChannels?: Record<string, NotificationChannel>;
+  gossip?: GossipTransport;
   now?: () => number;
   idGen?: () => string;
 }
@@ -60,6 +62,7 @@ export class DecisionEngine {
   private readonly simulator: Simulator | undefined;
   private readonly runner: PlaybookRunner | undefined;
   private readonly channels: Record<string, NotificationChannel>;
+  private readonly gossip: GossipTransport | undefined;
   private readonly now: () => number;
   private readonly idGen: () => string;
 
@@ -68,6 +71,7 @@ export class DecisionEngine {
     this.simulator = opts.simulator;
     this.runner = opts.playbookRunner;
     this.channels = opts.notificationChannels ?? {};
+    this.gossip = opts.gossip;
     this.now = opts.now ?? (() => Date.now());
     this.idGen = opts.idGen ?? randomUUID;
   }
@@ -260,6 +264,13 @@ export class DecisionEngine {
       } catch {
         // notification failures are not allowed to affect the verdict or persistence
       }
+    }
+
+    if (this.gossip) {
+      // GossipTransport implementations are required to never throw - they
+      // log internally on failure. The broadcast is awaited so blocked
+      // decisions reach co-operating gates before the response returns.
+      await this.gossip.broadcast(decision, policy);
     }
   }
 }

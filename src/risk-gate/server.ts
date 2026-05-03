@@ -7,6 +7,8 @@ import { KeeperHubRunner } from "../playbooks/keeperhub.js";
 import { MockRunner } from "../playbooks/runner.js";
 import { CollectorChannel, WebhookChannel } from "../playbooks/notifier.js";
 import type { NotificationChannel, PlaybookRunner } from "../playbooks/runner.js";
+import { AxlGossipTransport, type GossipTransport } from "../transport/axlGossip.js";
+import { NoopGossip } from "../transport/noopGossip.js";
 
 const port = Number(process.env.PORT ?? 8787);
 const host = process.env.HOST ?? "127.0.0.1";
@@ -45,9 +47,20 @@ if (process.env.NOTIFY_DISCORD_WEBHOOK) {
 
 console.log("[chainshield] simulator: heuristic (calldata decode + balance projection)");
 
+let gossip: GossipTransport;
+const axlBaseUrl = process.env.AXL_BASE_URL?.trim();
+if (axlBaseUrl) {
+  gossip = new AxlGossipTransport({ baseUrl: axlBaseUrl });
+  console.log(`[chainshield] gossip: gensyn axl @ ${axlBaseUrl}`);
+} else {
+  gossip = new NoopGossip();
+  console.log("[chainshield] gossip: disabled (set AXL_BASE_URL to publish BLOCK decisions over the AXL mesh)");
+}
+
 const engine = defaultEngine(store, {
   playbookRunner: runner,
   notificationChannels: channels,
+  gossip,
 });
 const policyService = new PolicyService(store);
 
