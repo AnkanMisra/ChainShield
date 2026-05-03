@@ -22,20 +22,21 @@ services:
     ports:
       - "${PORT:-8787}:8787"
     environment:
+      # Container-only knobs. Sponsor adapter keys must NOT be repeated here:
+      # values in `environment:` override values from `env_file:` in compose,
+      # so listing them here would shadow `.env.local` whenever the host shell
+      # doesn't export the same name. Server-side defaults (in `server.ts`)
+      # cover the `ZERO_G_*_URL` / `KEEPERHUB_API_URL` fallbacks anyway.
       HOST: "0.0.0.0"
       PORT: "8787"
       # Allow the Astro container's host-mapped port (4321) plus localhost
       # variants. WEB_ORIGIN can be a comma-separated list.
       WEB_ORIGIN: "http://127.0.0.1:4321,http://localhost:4321"
-      # Sponsor adapters — read from .env.local if present, otherwise
-      # the server falls back to InMemoryStore + MockRunner.
-      ZERO_G_RPC_URL: "${ZERO_G_RPC_URL:-https://evmrpc-testnet.0g.ai}"
-      ZERO_G_INDEXER_RPC: "${ZERO_G_INDEXER_RPC:-https://indexer-storage-testnet-turbo.0g.ai}"
-      ZERO_G_PRIVATE_KEY: "${ZERO_G_PRIVATE_KEY:-}"
-      KEEPERHUB_API_URL: "${KEEPERHUB_API_URL:-https://app.keeperhub.com}"
-      KEEPERHUB_API_KEY: "${KEEPERHUB_API_KEY:-}"
-      NOTIFY_DISCORD_WEBHOOK: "${NOTIFY_DISCORD_WEBHOOK:-}"
     env_file:
+      # Pulls KEEPERHUB_API_KEY, ZERO_G_PRIVATE_KEY, NOTIFY_DISCORD_WEBHOOK,
+      # and any URL overrides directly into the container env. `required: false`
+      # so the stack still boots on a fresh clone without a `.env.local`
+      # (server falls back to InMemoryStore + MockRunner).
       - path: .env.local
         required: false
     restart: unless-stopped
