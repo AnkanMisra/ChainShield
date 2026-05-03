@@ -6,11 +6,11 @@
 
 ## Progress
 
-**Done** — Phases 1-6 shipped and merged to `main`. 90 specs across 10 files green, server `tsc --noEmit` and Astro `astro check` both clean, Astro production build succeeds. 0G anchor verified live on Galileo (rootHash + storage tx + block + gas all recorded below).
+**Done** — Phases 1-6 shipped and merged to `main`. 112 specs across 13 files green, server `tsc --noEmit` and Astro `astro check` both clean, Astro production build succeeds. 0G anchor verified live on Galileo (rootHash + storage tx + block + gas all recorded below).
 
 **Left** — record demo per [`./demo-script.md`](./demo-script.md), submit at the ETHGlobal portal.
 
-**De-scoped** — 0G Compute (stretch), Gensyn AXL, Rust + Solidity port (post-hackathon).
+**De-scoped** — 0G Compute (stretch), Rust + Solidity port (post-hackathon).
 
 ## What it does
 
@@ -71,6 +71,12 @@ Verify independently:
 - HTML 404 pages and other non-JSON error bodies are scrubbed out of error messages so they never leak into the UI
 - Helper script `scripts/kh.sh` provides `list/get/run/status/ping` subcommands for testing
 
+### Gensyn AXL (wired)
+
+- `src/transport/axlGossip.ts` publishes every `BLOCK` decision to the configured AXL bridge
+- `src/risk-gate/server.ts` uses `AxlGossipTransport` when `AXL_BASE_URL` is set and `NoopGossip` otherwise
+- Soft failures are logged and never block the verdict response
+
 ### Optional integrations
 
 - **Discord** notifications: `WebhookChannel` posts an embed to a Discord webhook on every `BLOCK`. Set `NOTIFY_DISCORD_WEBHOOK` to enable.
@@ -78,7 +84,6 @@ Verify independently:
 ### Stretch / not shipped
 
 - **0G Compute (Inference)** — env stub present; `ZERO_G_INFERENCE_PROVIDER` is discovered at runtime, not yet wired
-- **Gensyn AXL** — env stub orphaned, never integrated. De-scoped after timeline pivot to TypeScript.
 
 ## How the decision engine works
 
@@ -111,11 +116,14 @@ For the Astro frontend specifically:
 ## Test coverage
 
 ```
-90 specs across 10 files · all green · ~280ms
+112 specs across 13 files
 
 tests/api.test.ts                  Risk-Gate API end-to-end
 tests/apiAnchor.test.ts            Anchor surfacing on policy + decision responses
                                    (incl. real ZeroGStore + buildApp e2e)
+tests/axlGossip.test.ts            AXL gossip transport + no-op fallback
+tests/clientIsolation.test.ts      Per-browser isolation + invalid client-id rejection
+tests/cors.test.ts                 WEB_ORIGIN allowlist + preview regex
 tests/engine.test.ts               5-rule decision ladder + invalidIntentValue / invalidApprovalCap guards
 tests/engineRemediation.test.ts    Playbook trigger + notification fan-out
 tests/engineSimulation.test.ts     Simulator integration + revert escalation

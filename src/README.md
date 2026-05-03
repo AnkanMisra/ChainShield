@@ -40,7 +40,7 @@ flowchart LR
 
 | | |
 |---|---|
-| Tests | [`../tests/`](../tests) — 109 specs across 13 files |
+| Tests | [`../tests/`](../tests) — 112 specs across 13 files |
 | Composition root | [`risk-gate/server.ts`](./risk-gate/server.ts) |
 | Frontend | [`../web/`](../web) — Astro 6, separate Bun workspace |
 | Conventions | [`../AGENTS.md`](../AGENTS.md) |

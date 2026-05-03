@@ -1,9 +1,9 @@
 # `tests/` — unit + integration coverage
 
-> 109 specs across 13 files, all green in `~340 ms`. Every external dependency is faked at the trait boundary; live anchor hashes are pinned as test constants so the renderer is exercised against real chain data.
+> 112 specs across 13 files. Every external dependency is faked at the trait boundary; live anchor hashes are pinned as test constants so the renderer is exercised against real chain data.
 
 ```sh
-bun test                      # all 109 specs
+bun test                      # all 112 specs
 bun test tests/engine.test.ts # one file
 bun test --watch              # watch mode
 bun test --coverage           # coverage report

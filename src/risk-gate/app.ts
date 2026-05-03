@@ -16,6 +16,15 @@ export interface AppDeps {
 }
 
 const DEFAULT_WEB_ORIGINS = ["http://127.0.0.1:4321", "http://localhost:4321"];
+const CLIENT_ID_MAX_LENGTH = 128;
+const CLIENT_ID_PATTERN = /^[A-Za-z0-9._:-]+$/;
+
+class InvalidClientIdError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidClientIdError";
+  }
+}
 
 /**
  * Parse a single comma-separated `WEB_ORIGIN` entry. Entries surrounded by
@@ -82,6 +91,10 @@ export function buildApp(deps: AppDeps = {}): FastifyInstance {
       reply.status(400).send({ error: "ValidationError", issues: err.issues });
       return;
     }
+    if (err instanceof InvalidClientIdError) {
+      reply.status(400).send({ error: "InvalidClientId", message: err.message });
+      return;
+    }
     const message = err instanceof Error ? err.message : String(err);
     reply.status(500).send({ error: "InternalError", message });
   });
@@ -98,13 +111,29 @@ export function buildApp(deps: AppDeps = {}): FastifyInstance {
    * Requests without the header (curl, the demo CLI, integration tests) get
    * `undefined` and the Store reverts to "no filter" — i.e. global view —
    * which is the legacy behaviour and is still useful for admin / debug.
+   * Requests with a present-but-invalid header are rejected instead of being
+   * treated as admin, so malformed browser traffic cannot bypass isolation.
    */
   function clientIdOf(req: { headers: Record<string, unknown> }): string | undefined {
     const raw = req.headers["x-client-id"];
-    if (typeof raw !== "string") return undefined;
+    if (raw === undefined) return undefined;
+    if (typeof raw !== "string") {
+      throw new InvalidClientIdError("X-Client-Id must be a string.");
+    }
     const trimmed = raw.trim();
-    // Cap at 128 chars to bound the dimension of the in-memory store.
-    if (trimmed.length === 0 || trimmed.length > 128) return undefined;
+    if (trimmed.length === 0) {
+      throw new InvalidClientIdError("X-Client-Id must not be blank.");
+    }
+    if (trimmed.length > CLIENT_ID_MAX_LENGTH) {
+      throw new InvalidClientIdError(
+        `X-Client-Id must be ${CLIENT_ID_MAX_LENGTH} characters or fewer.`,
+      );
+    }
+    if (!CLIENT_ID_PATTERN.test(trimmed)) {
+      throw new InvalidClientIdError(
+        "X-Client-Id may only contain letters, numbers, dot, underscore, colon, or hyphen.",
+      );
+    }
     return trimmed;
   }
 
@@ -117,8 +146,9 @@ export function buildApp(deps: AppDeps = {}): FastifyInstance {
   app.put("/policies/:id", async (req, reply) => {
     const { id } = req.params as { id: string };
     const parsed = policyInputSchema.parse(req.body);
+    const cid = clientIdOf(req);
     try {
-      return withAnchorPolicy(await policyService.update(id, parsed, clientIdOf(req)));
+      return withAnchorPolicy(await policyService.update(id, parsed, cid));
     } catch (err) {
       reply.status(404);
       return { error: "NotFound", message: (err as Error).message };

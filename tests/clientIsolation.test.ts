@@ -31,6 +31,15 @@ function getPolicy(app: ReturnType<typeof buildApp>, id: string, clientId?: stri
   });
 }
 
+function putPolicy(app: ReturnType<typeof buildApp>, id: string, clientId?: string) {
+  return app.inject({
+    method: "PUT",
+    url: `/policies/${encodeURIComponent(id)}`,
+    headers: clientId ? { "x-client-id": clientId } : {},
+    payload: { owner: TREASURY, rules: { allowedDestinations: [COLD_VAULT] } },
+  });
+}
+
 function postEvaluate(
   app: ReturnType<typeof buildApp>,
   policyId: string,
@@ -130,15 +139,67 @@ describe("Per-browser session isolation via X-Client-Id", () => {
     await app.close();
   });
 
-  it("rejects oversized X-Client-Id headers and falls back to admin view", async () => {
+  it("rejects oversized X-Client-Id headers instead of falling back to admin view", async () => {
     const app = buildApp();
     const oversized = "x".repeat(200);
+
     const created = await postPolicy(app, oversized);
-    expect(created.statusCode).toBe(201);
-    // Server treated the oversized id as "no clientId", so the policy was
-    // tagged null and the admin view (no header) sees it.
+    expect(created.statusCode).toBe(400);
+    expect(created.json().error).toBe("InvalidClientId");
+
     const adminSeesIt = await listPolicies(app);
-    expect(adminSeesIt.json().length).toBeGreaterThanOrEqual(1);
+    expect(adminSeesIt.json()).toHaveLength(0);
+    await app.close();
+  });
+
+  it("rejects blank X-Client-Id headers instead of writing unscoped rows", async () => {
+    const app = buildApp();
+
+    const created = await postPolicy(app, "   ");
+    expect(created.statusCode).toBe(400);
+    expect(created.json().error).toBe("InvalidClientId");
+
+    const adminSeesIt = await listPolicies(app);
+    expect(adminSeesIt.json()).toHaveLength(0);
+    await app.close();
+  });
+
+  it("rejects invalid X-Client-Id headers on read paths instead of exposing admin data", async () => {
+    const app = buildApp();
+    const created = await postPolicy(app, A);
+    const policyId = created.json().id;
+
+    const oversized = "x".repeat(200);
+    const policyRead = await getPolicy(app, policyId, oversized);
+    expect(policyRead.statusCode).toBe(400);
+    expect(policyRead.json().error).toBe("InvalidClientId");
+
+    const timelineRead = await getTimeline(app, oversized);
+    expect(timelineRead.statusCode).toBe(400);
+    expect(timelineRead.json().error).toBe("InvalidClientId");
+    await app.close();
+  });
+
+  it("rejects malformed X-Client-Id headers consistently across scoped API routes", async () => {
+    const app = buildApp();
+    const created = await postPolicy(app, A);
+    const policyId = created.json().id;
+    const malformed = "browser id with spaces";
+
+    const calls = [
+      postPolicy(app, malformed),
+      listPolicies(app, malformed),
+      getPolicy(app, policyId, malformed),
+      putPolicy(app, policyId, malformed),
+      postEvaluate(app, policyId, malformed),
+      getTimeline(app, malformed),
+    ];
+
+    for (const res of await Promise.all(calls)) {
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error).toBe("InvalidClientId");
+    }
+
     await app.close();
   });
 });

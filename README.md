@@ -28,7 +28,7 @@
 | **API hot path** | `< 50 ms` (anchor uploads stream in the background) |
 | **Verdicts** | `ALLOW` / `REQUIRE_HUMAN_CONFIRMATION` / `BLOCK` |
 | **Decision ladder** | 5 deterministic rules + 1 heuristic ERC-20 simulator |
-| **Test suite** | 109 specs / 13 files / 317 assertions / `~340 ms` cold |
+| **Test suite** | 112 specs / 13 files |
 | **Type safety** | `tsc --noEmit` + `astro check`, both zero-error, strict + `noUncheckedIndexedAccess` |
 | **Sponsors integrated** | 0G Storage, KeeperHub, Gensyn AXL, Discord webhooks |
 | **Lines of TypeScript (server)** | `~1,700` across `src/` |
@@ -223,7 +223,7 @@ The Astro UI lands at <http://localhost:4321>; the API health check at <http://l
 | `bun run dev:web` | Just Astro |
 | `bun run demo` | CLI runs four canonical scenes against the live API |
 | `bun run typecheck` | `tsc --noEmit` (server) + `astro check` (web) |
-| `bun test` | All 109 specs |
+| `bun test` | All 112 specs |
 | `bun run build` | Server bundle + Astro static output |
 | `bun run clean` | Remove `dist`, `coverage`, `.tsbuildinfo`, `web/dist`, `web/.astro` |
 
@@ -231,7 +231,7 @@ The Astro UI lands at <http://localhost:4321>; the API health check at <http://l
 
 ## Test coverage
 
-`109 specs / 13 files / 317 assertions / ~340 ms cold`
+`112 specs / 13 files`
 
 | File | What it covers |
 |---|---|
@@ -264,11 +264,11 @@ Live anchor proofs are pinned as test constants in `tests/webFormat.test.ts` so 
 | `src/transport/` | `GossipTransport` interface, `AxlGossipTransport`, `NoopGossip` |
 | `src/risk-gate/` | Fastify `app.ts` + `server.ts` composition root |
 | `src/cli/` | `demo.ts` - four canonical scene runner |
-| `tests/` | 109 specs across 13 files |
+| `tests/` | 112 specs across 13 files |
 | `web/` | Astro 6 frontend (separate Bun workspace) |
 | `docs/` | `submission.md`, `demo-script.md`, `architecture.md`, `deploy.md`, `sponsors/` |
 | `scripts/` | `kh.sh` (KeeperHub helper), `dev.sh` (parallel dev) |
-| `.github/workflows/` | CI: install + dual typecheck + 109 specs + Astro build + emoji scan |
+| `.github/workflows/` | CI: install + dual typecheck + 112 specs + Astro build + emoji scan |
 
 ---
 
