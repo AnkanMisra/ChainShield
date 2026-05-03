@@ -36,9 +36,74 @@ export async function submitEvaluateForm(form: HTMLFormElement): Promise<void> {
       chainId: Number(getField(form, "chainId") || "16602"),
     },
   };
-  const r = await api<Decision>("POST", "/evaluate", body);
-  renderEvaluate(r);
-  await loadTimeline();
+  const submitBtn = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+  const originalLabel = submitBtn?.innerHTML ?? "Evaluate";
+  setSubmitBusy(submitBtn, true);
+  const stopLoader = renderEvaluateLoading();
+  try {
+    const r = await api<Decision>("POST", "/evaluate", body);
+    stopLoader();
+    renderEvaluate(r);
+    await loadTimeline();
+  } finally {
+    setSubmitBusy(submitBtn, false, originalLabel);
+  }
+}
+
+function setSubmitBusy(
+  btn: HTMLButtonElement | null,
+  busy: boolean,
+  restoreLabel?: string,
+): void {
+  if (!btn) return;
+  btn.disabled = busy;
+  btn.classList.toggle("is-busy", busy);
+  if (busy) {
+    btn.innerHTML =
+      '<span class="btn-spinner" aria-hidden="true"></span><span>Evaluating</span>';
+  } else if (restoreLabel !== undefined) {
+    btn.innerHTML = restoreLabel;
+  }
+}
+
+/**
+ * Render an interim "working" panel while the /evaluate request is in flight.
+ * The slowest server stage is the 0G storage upload (5-30s on Galileo testnet).
+ * A live elapsed timer plus an explicit phase list keeps the user oriented
+ * instead of staring at a frozen UI.
+ *
+ * Returns a function that stops the timer and clears the interval.
+ */
+function renderEvaluateLoading(): () => void {
+  const el = document.getElementById("evaluate-result");
+  if (!el) return () => {};
+  const start = performance.now();
+  el.innerHTML =
+    '<span class="verdict-corner">Working</span>' +
+    '<div class="verdict-loading">' +
+    '<div class="verdict-result-head">' +
+    "<span>Evaluating intent</span>" +
+    "</div>" +
+    '<h3 class="verdict-stamp accent">Working.</h3>' +
+    '<div class="verdict-loading-bar" aria-hidden="true"><span></span></div>' +
+    '<div class="verdict-loading-row">' +
+    '<div class="verdict-loading-elapsed" data-loading-elapsed>0.0s</div>' +
+    '<div class="verdict-loading-label">Elapsed</div>' +
+    "</div>" +
+    '<ul class="reasons verdict-loading-reasons">' +
+    "<li>Validating intent against the policy schema.</li>" +
+    "<li>Running the deterministic rule ladder.</li>" +
+    "<li>Simulating ERC-20 effects via the heuristic decoder.</li>" +
+    "<li><strong>Anchoring the decision on 0G Storage</strong> &mdash; Galileo testnet uploads typically 5&ndash;30s.</li>" +
+    "</ul>" +
+    "</div>";
+  const elapsedEl = el.querySelector<HTMLElement>("[data-loading-elapsed]");
+  const timer = window.setInterval(() => {
+    if (!elapsedEl) return;
+    const sec = (performance.now() - start) / 1000;
+    elapsedEl.textContent = `${sec.toFixed(1)}s`;
+  }, 100);
+  return () => window.clearInterval(timer);
 }
 
 function renderEvaluate(r: { ok: boolean; status: number; data: unknown }): void {

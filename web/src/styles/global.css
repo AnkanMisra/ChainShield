@@ -256,6 +256,30 @@ body::after {
   transform: translateY(-1px);
   box-shadow: 0 8px 24px rgba(196, 255, 91, 0.18);
 }
+.btn-primary:disabled,
+.btn-primary.is-busy {
+  opacity: 0.7;
+  cursor: progress;
+  transform: none;
+  box-shadow: none;
+}
+.btn-primary:disabled::after,
+.btn-primary.is-busy::after {
+  content: none;
+}
+
+.btn-spinner {
+  display: inline-block;
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  border: 2px solid rgba(12, 13, 12, 0.25);
+  border-top-color: var(--ink-bg);
+  animation: btn-spin 0.7s linear infinite;
+}
+@keyframes btn-spin {
+  to { transform: rotate(360deg); }
+}
 .btn-primary::after {
   content: "→";
   font-family: var(--serif);
@@ -593,6 +617,64 @@ body::after {
 .verdict-stamp.allow { color: var(--allow); }
 .verdict-stamp.confirm { color: var(--confirm); }
 .verdict-stamp.block { color: var(--block); }
+.verdict-stamp.accent { color: var(--accent); }
+
+/* ---------- evaluate working / loading panel ---------- */
+.verdict-loading {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.verdict-loading-bar {
+  position: relative;
+  height: 3px;
+  background: var(--rule);
+  overflow: hidden;
+  margin: 0 0 1.5rem;
+}
+.verdict-loading-bar > span {
+  display: block;
+  position: absolute;
+  inset: 0;
+  width: 35%;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: verdict-loading-slide 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+@keyframes verdict-loading-slide {
+  0% { left: -35%; }
+  100% { left: 100%; }
+}
+.verdict-loading-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+.verdict-loading-elapsed {
+  font-family: var(--mono);
+  font-size: 1.6rem;
+  font-weight: 500;
+  color: var(--accent);
+  font-feature-settings: var(--tnum);
+  min-width: 4.5rem;
+}
+.verdict-loading-label {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  color: var(--paper-mute);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+}
+.verdict-loading-reasons {
+  margin-top: 0.5rem;
+}
+.verdict-loading-reasons li {
+  color: var(--paper-mute);
+}
+.verdict-loading-reasons li strong {
+  color: var(--paper);
+  font-weight: 500;
+}
 
 .verdict-meta {
   display: flex;
