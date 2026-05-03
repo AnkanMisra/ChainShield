@@ -26,6 +26,20 @@ describe("PolicyService", () => {
     ).rejects.toThrow();
   });
 
+  it("rejects approval caps that are not decimal wei strings", async () => {
+    const svc = new PolicyService(new InMemoryStore());
+    await expect(
+      svc.create({
+        owner: TREASURY,
+        rules: {
+          approvalCapByToken: {
+            [COLD_VAULT.toLowerCase() as `0x${string}`]: "infinite",
+          },
+        },
+      }),
+    ).rejects.toThrow(/decimal wei string/);
+  });
+
   it("bumps version on update", async () => {
     const store = new InMemoryStore();
     let n = 0;

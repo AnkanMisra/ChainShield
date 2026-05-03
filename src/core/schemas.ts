@@ -21,7 +21,9 @@ export const policyRulesSchema = z.object({
   allowedDestinations: z.array(addressSchema).optional(),
   forbiddenSelectors: z.array(selectorSchema).optional(),
   maxSlippageBps: z.number().int().min(0).max(10_000).optional(),
-  approvalCapByToken: z.record(addressSchema, z.string()).optional(),
+  approvalCapByToken: z
+    .record(addressSchema, z.string().regex(/^\d+$/, "approval cap must be a decimal wei string"))
+    .optional(),
 });
 
 export const policyRemediationSchema = z.object({

@@ -35,6 +35,15 @@ function ethToWei(eth: number): bigint {
   return BigInt(whole ?? "0") * WEI_PER_ETH + BigInt(padded || "0");
 }
 
+function tryBigInt(s: string | undefined | null): bigint | null {
+  if (s === undefined || s === null || s === "") return null;
+  try {
+    return BigInt(s);
+  } catch {
+    return null;
+  }
+}
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface DecisionEngineOptions {
@@ -93,8 +102,13 @@ export class DecisionEngine {
       return this.persist(earlyDecision);
     }
 
-    const valueWei = BigInt(intent.value);
-    if (policy.rules.maxTransferEth !== undefined) {
+    const valueWei = tryBigInt(intent.value);
+    if (valueWei === null) {
+      verdict = "REQUIRE_HUMAN_CONFIRMATION";
+      riskScore = Math.max(riskScore, 70);
+      rulesMatched.push("invalidIntentValue");
+      reasons.push(`Intent value "${intent.value}" is not a decimal wei string.`);
+    } else if (policy.rules.maxTransferEth !== undefined) {
       const cap = ethToWei(policy.rules.maxTransferEth);
       if (valueWei > cap) {
         verdict = "BLOCK";
@@ -106,7 +120,7 @@ export class DecisionEngine {
       }
     }
 
-    if (policy.rules.maxDailyOutflowEth !== undefined) {
+    if (policy.rules.maxDailyOutflowEth !== undefined && valueWei !== null) {
       const since = this.now() - DAY_MS;
       const recent = await this.store.listDecisions({
         owner: policy.owner,
@@ -114,7 +128,12 @@ export class DecisionEngine {
       });
       const usedWei = recent
         .filter((d) => d.verdict !== "BLOCK")
-        .reduce((sum, d) => sum + BigInt(d.intent.value), 0n);
+        .reduce((sum, d) => {
+          const v = tryBigInt(d.intent.value);
+          // Skip corrupt historical entries silently — a single bad row in the
+          // timeline must not break new evaluations.
+          return v === null ? sum : sum + v;
+        }, 0n);
       const projected = usedWei + valueWei;
       const cap = ethToWei(policy.rules.maxDailyOutflowEth);
       if (projected > cap) {
@@ -142,17 +161,23 @@ export class DecisionEngine {
       policy.rules.approvalCapByToken &&
       policy.rules.approvalCapByToken[intent.to.toLowerCase() as `0x${string}`] !== undefined
     ) {
-      const cap = BigInt(
-        policy.rules.approvalCapByToken[intent.to.toLowerCase() as `0x${string}`]!,
-      );
-      const amount = decodeUint256(intent.data, 1);
-      if (amount !== null && amount > cap) {
-        verdict = "BLOCK";
-        riskScore = Math.max(riskScore, 92);
-        rulesMatched.push("approvalCapByToken");
-        reasons.push(
-          `Approval amount ${amount} on token ${intent.to} exceeds cap of ${cap}.`,
-        );
+      const rawCap = policy.rules.approvalCapByToken[intent.to.toLowerCase() as `0x${string}`]!;
+      const cap = tryBigInt(rawCap);
+      if (cap === null) {
+        if (verdict === "ALLOW") verdict = "REQUIRE_HUMAN_CONFIRMATION";
+        riskScore = Math.max(riskScore, 70);
+        rulesMatched.push("invalidApprovalCap");
+        reasons.push(`Approval cap "${rawCap}" on token ${intent.to} is not a decimal wei string.`);
+      } else {
+        const amount = decodeUint256(intent.data, 1);
+        if (amount !== null && amount > cap) {
+          verdict = "BLOCK";
+          riskScore = Math.max(riskScore, 92);
+          rulesMatched.push("approvalCapByToken");
+          reasons.push(
+            `Approval amount ${amount} on token ${intent.to} exceeds cap of ${cap}.`,
+          );
+        }
       }
     }
 
