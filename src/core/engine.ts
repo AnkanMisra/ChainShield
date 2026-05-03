@@ -72,7 +72,7 @@ export class DecisionEngine {
     this.idGen = opts.idGen ?? randomUUID;
   }
 
-  async evaluate(intent: TxIntent, policy: Policy): Promise<Decision> {
+  async evaluate(intent: TxIntent, policy: Policy, clientId?: string): Promise<Decision> {
     const reasons: string[] = [];
     const rulesMatched: string[] = [];
     let verdict: Verdict = "ALLOW";
@@ -99,7 +99,7 @@ export class DecisionEngine {
         timestamp: this.now(),
       };
       await this.handleRemediation(earlyDecision, policy);
-      return this.persist(earlyDecision);
+      return this.persist(earlyDecision, clientId);
     }
 
     const valueWei = tryBigInt(intent.value);
@@ -125,6 +125,7 @@ export class DecisionEngine {
       const recent = await this.store.listDecisions({
         owner: policy.owner,
         from: since,
+        ...(clientId !== undefined && { clientId }),
       });
       const usedWei = recent
         .filter((d) => d.verdict !== "BLOCK")
@@ -209,7 +210,7 @@ export class DecisionEngine {
       await this.handleRemediation(decision, policy);
     }
 
-    return this.persist(decision);
+    return this.persist(decision, clientId);
   }
 
   private async runSimulator(intent: TxIntent): Promise<SimulationResult | undefined> {
@@ -227,8 +228,8 @@ export class DecisionEngine {
     }
   }
 
-  private async persist(decision: Decision): Promise<Decision> {
-    await this.store.appendDecision(decision);
+  private async persist(decision: Decision, clientId?: string): Promise<Decision> {
+    await this.store.appendDecision(decision, clientId);
     return decision;
   }
 

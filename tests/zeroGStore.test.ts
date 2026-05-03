@@ -122,7 +122,7 @@ describe("ZeroGStore", () => {
     await store.putPolicy(makePolicy({ id: "p1", owner: TREASURY }));
     await store.putPolicy(makePolicy({ id: "p2", owner: ATTACKER }));
     const upper = TREASURY.toUpperCase() as `0x${string}`;
-    const list = await store.listPolicies(upper);
+    const list = await store.listPolicies({ owner: upper });
     expect(list.map((p) => p.id)).toEqual(["p1"]);
   });
 

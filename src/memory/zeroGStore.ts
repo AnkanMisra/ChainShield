@@ -34,15 +34,33 @@ export interface ZeroGStoreOptions {
   logger?: Pick<Console, "log" | "warn">;
 }
 
+interface TaggedPolicy {
+  policy: Policy;
+  clientId: string | null;
+}
+
+interface TaggedDecision {
+  decision: Decision;
+  clientId: string | null;
+}
+
 export class ZeroGStore implements Store {
   private readonly indexer: IndexerLike;
   private readonly signer: ethers.Signer;
   private readonly rpcUrl: string;
   private readonly logger: Pick<Console, "log" | "warn">;
 
-  private policies = new Map<string, Policy>();
-  private decisions: Decision[] = [];
+  private policies = new Map<string, TaggedPolicy>();
+  private decisions: TaggedDecision[] = [];
   private anchors = new Map<string, AnchorRecord>();
+
+  /**
+   * Tracks every in-flight 0G upload by row id so tests + the API admin
+   * route can `await` for the anchor to land. In production nothing awaits
+   * this — `putPolicy`/`appendDecision` return immediately after the local
+   * write so the request hot path stays under 50ms instead of 5-30s.
+   */
+  private pending = new Map<string, Promise<void>>();
 
   constructor(opts: ZeroGStoreOptions) {
     this.rpcUrl = opts.rpcUrl;
@@ -59,33 +77,61 @@ export class ZeroGStore implements Store {
     }
   }
 
-  /**
-   * Tracks every in-flight 0G upload by row id so tests + the API admin
-   * route can `await` for the anchor to land. In production nothing awaits
-   * this — `putPolicy`/`appendDecision` return immediately after the local
-   * write so the request hot path stays under 50ms instead of 5-30s.
-   */
-  private pending = new Map<string, Promise<void>>();
-
-  async putPolicy(policy: Policy): Promise<void> {
-    this.policies.set(policy.id, policy);
+  async putPolicy(policy: Policy, clientId?: string): Promise<void> {
+    this.policies.set(policy.id, { policy, clientId: clientId ?? null });
     this.scheduleAnchor(policy.id, `policy:${policy.id}`, JSON.stringify(policy));
   }
 
-  async getPolicy(id: string): Promise<Policy | null> {
-    return this.policies.get(id) ?? null;
+  async getPolicy(id: string, clientId?: string): Promise<Policy | null> {
+    const row = this.policies.get(id);
+    if (!row) return null;
+    if (clientId !== undefined && row.clientId !== clientId) return null;
+    return row.policy;
   }
 
-  async listPolicies(owner?: Policy["owner"]): Promise<Policy[]> {
+  async listPolicies(filter: {
+    owner?: Policy["owner"];
+    clientId?: string;
+  } = {}): Promise<Policy[]> {
     const all = [...this.policies.values()];
-    return owner
-      ? all.filter((p) => p.owner.toLowerCase() === owner.toLowerCase())
-      : all;
+    return all
+      .filter((row) => {
+        if (filter.clientId !== undefined && row.clientId !== filter.clientId) return false;
+        if (filter.owner && row.policy.owner.toLowerCase() !== filter.owner.toLowerCase()) {
+          return false;
+        }
+        return true;
+      })
+      .map((row) => row.policy);
   }
 
-  async appendDecision(decision: Decision): Promise<void> {
-    this.decisions.push(decision);
+  async appendDecision(decision: Decision, clientId?: string): Promise<void> {
+    this.decisions.push({ decision, clientId: clientId ?? null });
     this.scheduleAnchor(decision.id, `decision:${decision.id}`, JSON.stringify(decision));
+  }
+
+  async listDecisions(filter: {
+    owner?: Policy["owner"];
+    from?: number;
+    to?: number;
+    clientId?: string;
+  }): Promise<Decision[]> {
+    return this.decisions
+      .filter((row) => {
+        if (filter.clientId !== undefined && row.clientId !== filter.clientId) return false;
+        const d = row.decision;
+        if (filter.from !== undefined && d.timestamp < filter.from) return false;
+        if (filter.to !== undefined && d.timestamp > filter.to) return false;
+        if (filter.owner && d.intent.from.toLowerCase() !== filter.owner.toLowerCase()) {
+          return false;
+        }
+        return true;
+      })
+      .map((row) => row.decision);
+  }
+
+  getAnchor(id: string): AnchorRecord | undefined {
+    return this.anchors.get(id);
   }
 
   /**
@@ -115,25 +161,6 @@ export class ZeroGStore implements Store {
         if (this.pending.get(rowId) === p) this.pending.delete(rowId);
       });
     this.pending.set(rowId, p);
-  }
-
-  async listDecisions(filter: {
-    owner?: Policy["owner"];
-    from?: number;
-    to?: number;
-  }): Promise<Decision[]> {
-    return this.decisions.filter((d) => {
-      if (filter.from !== undefined && d.timestamp < filter.from) return false;
-      if (filter.to !== undefined && d.timestamp > filter.to) return false;
-      if (filter.owner && d.intent.from.toLowerCase() !== filter.owner.toLowerCase()) {
-        return false;
-      }
-      return true;
-    });
-  }
-
-  getAnchor(id: string): AnchorRecord | undefined {
-    return this.anchors.get(id);
   }
 
   private async tryAnchor(label: string, json: string): Promise<AnchorRecord | null> {
