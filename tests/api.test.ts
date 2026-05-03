@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { buildApp } from "../src/risk-gate/app.js";
+import type { PolicyService } from "../src/core/policyService.js";
 import { TREASURY, COLD_VAULT, ATTACKER } from "./helpers.js";
 
 describe("Risk-Gate API", () => {
@@ -147,6 +148,52 @@ describe("Risk-Gate API", () => {
     });
     expect(res.statusCode).toBe(400);
     expect(res.json().error).toBe("ValidationError");
+    await app.close();
+  });
+
+  it("returns 404 when updating an unknown policy", async () => {
+    const app = buildApp();
+    const res = await app.inject({
+      method: "PUT",
+      url: "/policies/missing",
+      payload: {
+        owner: TREASURY,
+        rules: { allowedDestinations: [COLD_VAULT] },
+      },
+    });
+
+    const body = res.json() as { error: string; message: string };
+    expect(res.statusCode).toBe(404);
+    expect(body).toEqual({
+      error: "NotFound",
+      message: "Policy missing not found",
+    });
+    await app.close();
+  });
+
+  it("does not report unexpected policy update failures as NotFound", async () => {
+    const policyService = {
+      update: async () => {
+        throw new Error("storage unavailable");
+      },
+    } as unknown as PolicyService;
+    const app = buildApp({ policyService });
+
+    const res = await app.inject({
+      method: "PUT",
+      url: "/policies/policy-1",
+      payload: {
+        owner: TREASURY,
+        rules: { allowedDestinations: [COLD_VAULT] },
+      },
+    });
+
+    const body = res.json() as { error: string; message: string };
+    expect(res.statusCode).toBe(500);
+    expect(body).toEqual({
+      error: "InternalError",
+      message: "storage unavailable",
+    });
     await app.close();
   });
 });
