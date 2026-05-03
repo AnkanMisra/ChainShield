@@ -18,6 +18,7 @@ import type { Decision, Policy, TxIntent } from "../core/types.js";
 
 const API_BASE = (process.env.DEMO_API_BASE ?? "http://127.0.0.1:8787").replace(/\/+$/, "");
 const PLAYBOOK_ID = process.env.DEMO_PLAYBOOK_ID ?? "";
+const REUSE_POLICY_ID = process.env.DEMO_REUSE_POLICY_ID ?? "";
 
 const TREASURY = "0x1111111111111111111111111111111111111111" as const;
 const COLD_VAULT = "0x2222222222222222222222222222222222222222" as const;
@@ -129,6 +130,7 @@ function printHeader(): void {
   console.log(rule());
   console.log(`api      ${CYAN}${API_BASE}${RESET}`);
   console.log(`playbook ${PLAYBOOK_ID || `${DIM}(none — set DEMO_PLAYBOOK_ID for KeeperHub remediation)${RESET}`}`);
+  console.log(`policy   ${REUSE_POLICY_ID || `${DIM}(create fresh — set DEMO_REUSE_POLICY_ID to reuse and skip 0G upload gas)${RESET}`}`);
   console.log(rule());
 }
 
@@ -179,31 +181,52 @@ async function main(): Promise<void> {
   }
   console.log(`health     ${GREEN}ok${RESET}`);
 
-  // 2. create the demo policy
-  const policyBody = {
-    owner: TREASURY,
-    rules: {
-      maxTransferEth: 1,
-      maxDailyOutflowEth: 3,
-      allowedDestinations: [COLD_VAULT],
-      forbiddenSelectors: ["0x095ea7b3"],
-    },
-    remediation: PLAYBOOK_ID
-      ? { onBlock: [PLAYBOOK_ID], notifyChannels: ["collector"] }
-      : { onBlock: [], notifyChannels: ["collector"] },
-  };
-  const policyRes = await apiCall<Policy>("POST", "/policies", policyBody);
-  if (!policyRes.ok) {
-    console.error(`${RED}policy create failed (${policyRes.status}):${RESET}`, policyRes.data);
-    process.exit(1);
+  // 2. fetch or create the demo policy
+  // Set DEMO_REUSE_POLICY_ID to skip the create step on re-runs — useful when
+  // the server is wired to 0G and you don't want to pay storage gas for a
+  // fresh anchor on every iteration.
+  let policyId: string;
+  let policyVersion: number;
+  if (REUSE_POLICY_ID) {
+    const res = await apiCall<Policy>("GET", `/policies/${encodeURIComponent(REUSE_POLICY_ID)}`);
+    if (!res.ok) {
+      console.error(
+        `${RED}DEMO_REUSE_POLICY_ID lookup failed (${res.status}):${RESET}`,
+        res.data,
+      );
+      process.exit(1);
+    }
+    policyId = res.data.id;
+    policyVersion = res.data.version;
+    console.log(`policy     ${policyId} (v${policyVersion}) ${DIM}(reused)${RESET}`);
+  } else {
+    const policyBody = {
+      owner: TREASURY,
+      rules: {
+        maxTransferEth: 1,
+        maxDailyOutflowEth: 3,
+        allowedDestinations: [COLD_VAULT],
+        forbiddenSelectors: ["0x095ea7b3"],
+      },
+      remediation: PLAYBOOK_ID
+        ? { onBlock: [PLAYBOOK_ID], notifyChannels: ["collector"] }
+        : { onBlock: [], notifyChannels: ["collector"] },
+    };
+    const policyRes = await apiCall<Policy>("POST", "/policies", policyBody);
+    if (!policyRes.ok) {
+      console.error(`${RED}policy create failed (${policyRes.status}):${RESET}`, policyRes.data);
+      process.exit(1);
+    }
+    policyId = policyRes.data.id;
+    policyVersion = policyRes.data.version;
+    console.log(`policy     ${policyId} (v${policyVersion})`);
   }
-  console.log(`policy     ${policyRes.data.id} (v${policyRes.data.version})`);
 
   // 3. run scenes in order
   let allPassed = true;
   for (const scene of scenes) {
     const evalRes = await apiCall<Decision>("POST", "/evaluate", {
-      policyId: policyRes.data.id,
+      policyId,
       intent: scene.intent,
     });
     if (!evalRes.ok) {
