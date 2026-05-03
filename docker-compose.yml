@@ -1,15 +1,43 @@
+# `docker compose up --build` brings the full stack online:
+#
+#   - api: the Bun + Fastify risk-gate server on http://127.0.0.1:8787
+#   - web: the Astro static frontend on http://127.0.0.1:4321
+#
+# The browser talks to both directly (cross-origin); the api image
+# registers @fastify/cors for the web origin via WEB_ORIGIN so the
+# Astro UI can hit /policies and /evaluate from :4321.
+#
+# Sponsor adapters opt in via .env.local (compose reads it automatically):
+#   ZERO_G_PRIVATE_KEY    -> ZeroGStore anchors policies + decisions
+#   KEEPERHUB_API_KEY     -> KeeperHubRunner fires real workflows
+#   NOTIFY_DISCORD_WEBHOOK-> Discord notification channel
+
 services:
-  chainshield:
+  api:
     build:
       context: .
       dockerfile: Dockerfile
-    image: chainshield-agent:dev
-    container_name: chainshield
+    image: chainshield-api:dev
+    container_name: chainshield-api
     ports:
       - "${PORT:-8787}:8787"
     environment:
       HOST: "0.0.0.0"
       PORT: "8787"
+      # Allow the Astro container's host-mapped port (4321) plus localhost
+      # variants. WEB_ORIGIN can be a comma-separated list.
+      WEB_ORIGIN: "http://127.0.0.1:4321,http://localhost:4321"
+      # Sponsor adapters — read from .env.local if present, otherwise
+      # the server falls back to InMemoryStore + MockRunner.
+      ZERO_G_RPC_URL: "${ZERO_G_RPC_URL:-https://evmrpc-testnet.0g.ai}"
+      ZERO_G_INDEXER_RPC: "${ZERO_G_INDEXER_RPC:-https://indexer-storage-testnet-turbo.0g.ai}"
+      ZERO_G_PRIVATE_KEY: "${ZERO_G_PRIVATE_KEY:-}"
+      KEEPERHUB_API_URL: "${KEEPERHUB_API_URL:-https://app.keeperhub.com}"
+      KEEPERHUB_API_KEY: "${KEEPERHUB_API_KEY:-}"
+      NOTIFY_DISCORD_WEBHOOK: "${NOTIFY_DISCORD_WEBHOOK:-}"
+    env_file:
+      - path: .env.local
+        required: false
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8787/health"]
@@ -17,3 +45,31 @@ services:
       timeout: 3s
       retries: 3
       start_period: 3s
+    networks:
+      - chainshield
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    image: chainshield-web:dev
+    container_name: chainshield-web
+    ports:
+      - "${WEB_PORT:-4321}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 2s
+    networks:
+      - chainshield
+
+networks:
+  chainshield:
+    name: chainshield
+    driver: bridge

@@ -126,8 +126,26 @@ Without funding the server still works — the in-memory store is the fallback a
 
 ### Docker
 
+Single command brings up both the API and the Astro frontend with no Bun install on the host:
+
 ```sh
-docker compose up --build         # builds and runs on host port 8787
+docker compose up --build
+# api  on http://127.0.0.1:8787
+# web  on http://127.0.0.1:4321
+```
+
+Compose reads `.env.local` if present, so set `ZERO_G_PRIVATE_KEY` and `KEEPERHUB_API_KEY` there before bringing the stack up. Without those, the API still boots and falls back to `InMemoryStore` + `MockRunner`. Stop with `docker compose down`.
+
+If you only want to run the API (frontend stays on bare-metal Bun):
+
+```sh
+docker compose up --build api
+```
+
+Override the host ports with `PORT` (api) and `WEB_PORT` (web):
+
+```sh
+PORT=18787 WEB_PORT=14321 docker compose up --build
 ```
 
 ---
@@ -246,9 +264,11 @@ bun run test:coverage             # v8 coverage
 bun run demo                      # CLI four-scene runner
 
 # Docker
-docker compose up --build         # build + run on :8787
+docker compose up --build         # api on :8787 + web on :4321
+docker compose up --build api     # api only
 docker compose down               # stop the stack
-docker compose logs -f chainshield
+docker compose logs -f api        # api logs
+docker compose logs -f web        # web (nginx) logs
 ```
 </details>
 
