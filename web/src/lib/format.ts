@@ -72,6 +72,19 @@ export function shortHash(h: string | undefined | null): string {
 const STORAGESCAN = "https://storagescan-galileo.0g.ai";
 const CHAINSCAN = "https://chainscan-galileo.0g.ai";
 
+/**
+ * Returns trusted HTML that is safe to insert via `innerHTML`.
+ *
+ * The output escapes user-controlled bytes from `anchor.rootHash` and
+ * `anchor.txHash` in three places:
+ *   - the visible truncated hash (`shortHash` + `escapeHtml`)
+ *   - the `title=` tooltip (`escapeHtml`)
+ *   - the `href=` URL (`encodeURIComponent` + `escapeHtml`)
+ *
+ * Callers SHOULD assemble the result into a larger HTML string and assign it
+ * via `innerHTML`. They MUST NOT inject untrusted content alongside the pill
+ * without their own escaping.
+ */
 export function anchorPillHtml(anchor: AnchorRecord | undefined): string {
   if (!anchor || !anchor.rootHash) {
     return '<span class="anchor-missing">— not anchored</span>';
