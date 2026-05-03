@@ -2,9 +2,9 @@
 
 > Autonomous treasury and wallet protection — a policy-bound security agent that simulates, scores, and intercepts risky onchain actions before funds are lost.
 
-Built for **ETHGlobal OpenAgents 2026** with sponsor integrations planned for **0G**, **KeeperHub**, and **Gensyn AXL**.
+Built for **ETHGlobal OpenAgents 2026** with sponsor integrations for **0G Storage** (anchored audit timeline) and **KeeperHub** (auto-remediation playbooks). 0G Compute is a stretch; Gensyn AXL was de-scoped after the timeline pivot.
 
-For the full product story, demo flow, and judge pitch, see [`docs/product-idea.md`](./docs/product-idea.md). For the system design and sponsor entry points, see [`docs/architecture.md`](./docs/architecture.md). Sponsor research notes live under [`docs/sponsors/`](./docs/sponsors). Project conventions for AI coding agents live in [`AGENTS.md`](./AGENTS.md).
+**For judges:** start with [`docs/submission.md`](./docs/submission.md) for the one-pager, then [`docs/demo-script.md`](./docs/demo-script.md) for the demo walkthrough. For the full product story see [`docs/product-idea.md`](./docs/product-idea.md). System design and the post-hackathon Rust + Solidity roadmap live in [`docs/architecture.md`](./docs/architecture.md). Sponsor research notes are under [`docs/sponsors/`](./docs/sponsors). AI-agent conventions live in [`AGENTS.md`](./AGENTS.md).
 
 ## How it works at a glance
 
