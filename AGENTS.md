@@ -28,7 +28,7 @@ This hackathon submission is **TypeScript on Bun, end to end**. There is no Rust
 bun install                # install deps from bun.lock
 bun run dev                # start risk-gate server with watch on 127.0.0.1:8787
 bun run start              # production-style boot (no watch)
-bun test                   # 112 specs across 13 files
+bun test                   # 114 specs across 13 files
 bun run test:coverage      # v8 coverage report
 bun run typecheck          # tsc --noEmit, must exit 0
 bun run build              # bundle to ./dist/server.js

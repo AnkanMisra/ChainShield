@@ -6,7 +6,7 @@
 
 ## Progress
 
-**Done** — Phases 1-6 shipped and merged to `main`. 112 specs across 13 files green, server `tsc --noEmit` and Astro `astro check` both clean, Astro production build succeeds. 0G anchor verified live on Galileo (rootHash + storage tx + block + gas all recorded below).
+**Done** — Phases 1-6 shipped and merged to `main`. 114 specs across 13 files green, server `tsc --noEmit` and Astro `astro check` both clean, Astro production build succeeds. 0G anchor verified live on Galileo (rootHash + storage tx + block + gas all recorded below).
 
 **Left** — record demo per [`./demo-script.md`](./demo-script.md), submit at the ETHGlobal portal.
 
@@ -116,7 +116,7 @@ For the Astro frontend specifically:
 ## Test coverage
 
 ```
-112 specs across 13 files
+114 specs across 13 files
 
 tests/api.test.ts                  Risk-Gate API end-to-end
 tests/apiAnchor.test.ts            Anchor surfacing on policy + decision responses

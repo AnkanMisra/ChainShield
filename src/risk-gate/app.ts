@@ -4,7 +4,7 @@ import { ZodError } from "zod";
 import type { AnchorRecord, Store } from "../memory/store.js";
 import { InMemoryStore } from "../memory/memoryStore.js";
 import { DecisionEngine, type DecisionEngineOptions } from "../core/engine.js";
-import { PolicyService } from "../core/policyService.js";
+import { PolicyNotFoundError, PolicyService } from "../core/policyService.js";
 import { evaluateRequestSchema, policyInputSchema } from "../core/schemas.js";
 import type { Decision, Policy } from "../core/types.js";
 import { HeuristicSimulator } from "../simulator/heuristic.js";
@@ -150,8 +150,11 @@ export function buildApp(deps: AppDeps = {}): FastifyInstance {
     try {
       return withAnchorPolicy(await policyService.update(id, parsed, cid));
     } catch (err) {
+      if (!(err instanceof PolicyNotFoundError)) {
+        throw err;
+      }
       reply.status(404);
-      return { error: "NotFound", message: (err as Error).message };
+      return { error: "NotFound", message: err.message };
     }
   });
 

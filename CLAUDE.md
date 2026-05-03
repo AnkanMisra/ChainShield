@@ -6,7 +6,7 @@ Project context for Claude Code. Read this first.
 
 **ChainShield Agent** — a policy-bound risk gate for treasury wallets. Built for ETHGlobal OpenAgents 2026. The server takes a transaction intent, evaluates it against deterministic rules + a heuristic ERC-20 simulator, anchors the resulting decision JSON on 0G Storage, and fires KeeperHub remediation playbooks on `BLOCK`. Three verdicts: `ALLOW`, `REQUIRE_HUMAN_CONFIRMATION`, `BLOCK`.
 
-The submission is shipped: PR #6 merged into `main` on 2026-05-03. 112 specs across 13 files green. Live anchor verified on Galileo testnet.
+The submission is shipped: PR #6 merged into `main` on 2026-05-03. 114 specs across 13 files green. Live anchor verified on Galileo testnet.
 
 ## Stack (do not assume Rust/Solidity)
 
@@ -31,7 +31,7 @@ bun run dev:server         # just the Fastify server
 bun run dev:web            # just the Astro frontend
 
 bun run typecheck          # both: server + web (must be 0 errors)
-bun test                   # 112 specs
+bun test                   # 114 specs
 bun run demo               # CLI four-scene runner against the live API
 
 bun run build              # bundle server + Astro static output
@@ -46,7 +46,7 @@ docker compose up --build  # containerised path
 - `src/playbooks/` — `PlaybookRunner` interface, `KeeperHubRunner`, notification channels
 - `src/risk-gate/` — Fastify `app.ts` and `server.ts` composition root
 - `src/cli/demo.ts` — four-canonical-scene CLI
-- `tests/` — 112 specs across 13 files
+- `tests/` — 114 specs across 13 files
 - `web/` — Astro 6 frontend (components, lib, pages, styles)
 - `docs/` — `submission.md` (judge one-pager), `demo-script.md`, `architecture.md`, `sponsors/`
 - `scripts/` — `kh.sh` (KeeperHub helper), `dev.sh` (parallel dev)
@@ -97,7 +97,7 @@ Every PR to `main` and every push to `main` runs [`.github/workflows/ci.yml`](./
 2. Installs web deps with `bun install --frozen-lockfile`
 3. `bun run typecheck:server` — `tsc --noEmit`
 4. `bun run typecheck:web` — `astro check`
-5. `bun test` — 112 specs
+5. `bun test` — 114 specs
 6. `bun run build:web` — Astro production build
 7. Emoji scan — fails the build if any banned emoji byte sequence appears in tracked files
 

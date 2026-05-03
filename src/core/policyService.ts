@@ -3,6 +3,13 @@ import type { Policy } from "./types.js";
 import type { Store } from "../memory/store.js";
 import { policyInputSchema, type PolicyInput } from "./schemas.js";
 
+export class PolicyNotFoundError extends Error {
+  constructor(id: string) {
+    super(`Policy ${id} not found`);
+    this.name = "PolicyNotFoundError";
+  }
+}
+
 export class PolicyService {
   constructor(
     private readonly store: Store,
@@ -26,7 +33,7 @@ export class PolicyService {
 
   async update(id: string, input: PolicyInput, clientId?: string): Promise<Policy> {
     const existing = await this.store.getPolicy(id, clientId);
-    if (!existing) throw new Error(`Policy ${id} not found`);
+    if (!existing) throw new PolicyNotFoundError(id);
     const policy: Policy = {
       ...existing,
       owner: input.owner,

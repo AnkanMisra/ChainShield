@@ -18,7 +18,7 @@ Design for the ChainShield product, mapped onto the sponsor APIs that ship in th
 | Persistence — read path | In-memory cache (anchored writes are best-effort durability, not the read source) |
 | Remediation execution | KeeperHub REST (`https://app.keeperhub.com/api/workflow/{id}/execute`) via `fetch` |
 | Browser UI | Astro 6 at `web/` (vanilla TS, no React/Vue) |
-| Tests | `bun:test` (112 specs across 13 files at the time of writing) |
+| Tests | `bun:test` (114 specs across 13 files at the time of writing) |
 | Containerization | Docker (`oven/bun:1`) |
 
 ## Current Module Map (`src/`)
