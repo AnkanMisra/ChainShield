@@ -1,5 +1,5 @@
 import { api } from "./api.js";
-import { escapeHtml, formatRules } from "./format.js";
+import { anchorPillHtml, escapeHtml, formatRules } from "./format.js";
 import { showJsonModal } from "./modal.js";
 import { summarizeZodIssues } from "./format.js";
 import type { Address, Hex, Policy } from "./types.js";
@@ -104,6 +104,7 @@ export async function loadPolicies(): Promise<void> {
           </div>
           <div class="policy-card-id">${escapeHtml(p.id)}</div>
           <div class="policy-card-rules">${escapeHtml(formatRules(p.rules))}</div>
+          <div class="policy-card-anchor">${anchorPillHtml(p.anchor)}</div>
         </div>
       `,
     )

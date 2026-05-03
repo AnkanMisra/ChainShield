@@ -1,5 +1,5 @@
 import { api } from "./api.js";
-import { escapeHtml, renderReason, verdictKlass, verdictWord } from "./format.js";
+import { anchorPillHtml, escapeHtml, renderReason, verdictKlass, verdictWord } from "./format.js";
 import { showJsonModal } from "./modal.js";
 import type { Decision } from "./types.js";
 
@@ -50,6 +50,7 @@ export async function loadTimeline(): Promise<void> {
             </div>
             ${rules ? `<div class="timeline-row-meta">${rules}</div>` : ""}
             ${playbookCell}
+            <div class="timeline-row-anchor">${anchorPillHtml(d.anchor)}</div>
             <div class="timeline-row-reasons">${reasons}</div>
           </div>
         </article>`;

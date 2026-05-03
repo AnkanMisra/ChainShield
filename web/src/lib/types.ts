@@ -28,6 +28,11 @@ export interface PolicyRemediation {
   notifyChannels?: string[];
 }
 
+export interface AnchorRecord {
+  rootHash: string;
+  txHash: string;
+}
+
 export interface Policy {
   id: string;
   owner: Address;
@@ -35,6 +40,7 @@ export interface Policy {
   remediation: PolicyRemediation;
   version: number;
   updatedAt: number;
+  anchor?: AnchorRecord;
 }
 
 export interface PlaybookRun {
@@ -53,6 +59,7 @@ export interface Decision {
   playbookTriggered?: PlaybookRun;
   policyId: string;
   timestamp: number;
+  anchor?: AnchorRecord;
 }
 
 export interface ApiResult<T> {

@@ -686,6 +686,54 @@ body::after {
   animation: pulse 1.6s infinite ease-in-out;
 }
 
+.policy-card-anchor {
+  margin-top: 0.65rem;
+  display: flex;
+  align-items: center;
+}
+.timeline-row-anchor {
+  margin: 0.5rem 0 0.75rem 0;
+  display: flex;
+  align-items: center;
+}
+.anchor-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  padding: 0.28rem 0.6rem 0.28rem 0.45rem;
+  background: rgba(196, 255, 91, 0.06);
+  border: 1px solid rgba(196, 255, 91, 0.45);
+  color: var(--accent);
+  text-decoration: none;
+  letter-spacing: 0.04em;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.anchor-pill:hover {
+  background: rgba(196, 255, 91, 0.12);
+  border-color: var(--accent);
+}
+.anchor-pill-label {
+  font-weight: 700;
+  font-size: 0.6rem;
+  letter-spacing: 0.18em;
+  padding: 0.05rem 0.3rem;
+  background: var(--accent);
+  color: var(--ink-bg);
+}
+.anchor-pill-hash {
+  font-weight: 500;
+  color: var(--paper);
+}
+.anchor-missing {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  color: var(--paper-mute);
+  font-style: italic;
+  letter-spacing: 0.04em;
+}
+
 .reasons { list-style: none; padding: 0; margin: 0; }
 .reasons li {
   font-family: var(--sans);

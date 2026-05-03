@@ -1,4 +1,4 @@
-import type { PolicyRules, ValidationError, Verdict } from "./types.js";
+import type { AnchorRecord, PolicyRules, ValidationError, Verdict } from "./types.js";
 
 export function escapeHtml(s: unknown): string {
   return String(s).replace(/[&<>"']/g, (c) =>
@@ -61,4 +61,27 @@ export function verdictWord(v: Verdict): string {
   if (v === "ALLOW") return "Allowed";
   if (v === "BLOCK") return "Blocked";
   return "Confirm";
+}
+
+export function shortHash(h: string | undefined | null): string {
+  if (!h || typeof h !== "string") return "";
+  const s = h.startsWith("0x") ? h : `0x${h}`;
+  return s.length > 14 ? `${s.slice(0, 8)}…${s.slice(-6)}` : s;
+}
+
+const STORAGESCAN = "https://storagescan-galileo.0g.ai";
+const CHAINSCAN = "https://chainscan-galileo.0g.ai";
+
+export function anchorPillHtml(anchor: AnchorRecord | undefined): string {
+  if (!anchor || !anchor.rootHash) {
+    return '<span class="anchor-missing">— not anchored</span>';
+  }
+  const root = escapeHtml(shortHash(anchor.rootHash));
+  const tooltip = escapeHtml(
+    `0G Storage anchor\nrootHash: ${anchor.rootHash}\ntxHash:   ${anchor.txHash}\n\nClick to open on chainscan-galileo.0g.ai`,
+  );
+  const txUrl = anchor.txHash
+    ? `${CHAINSCAN}/tx/${encodeURIComponent(anchor.txHash)}`
+    : `${STORAGESCAN}/tx/${encodeURIComponent(anchor.rootHash)}`;
+  return `<a class="anchor-pill" href="${escapeHtml(txUrl)}" target="_blank" rel="noopener noreferrer" title="${tooltip}"><span class="anchor-pill-label">0G</span><span class="anchor-pill-hash">${root}</span></a>`;
 }
