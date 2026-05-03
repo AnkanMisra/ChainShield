@@ -33,25 +33,64 @@ function bindForms(): void {
   });
 }
 
+/**
+ * Disable a button + swap its label for a spinner while an async handler
+ * runs, then restore both. Mirrors the pattern used inside the evaluate
+ * form (lib/evaluate.ts) so the UX is consistent across the page.
+ */
+async function runWithBusyState(
+  btn: HTMLButtonElement,
+  busyLabel: string,
+  handler: () => void | Promise<void>,
+): Promise<void> {
+  const originalLabel = btn.innerHTML;
+  btn.disabled = true;
+  btn.classList.add("is-busy");
+  btn.innerHTML = `<span class="btn-spinner" aria-hidden="true"></span><span>${busyLabel}</span>`;
+  try {
+    await handler();
+  } finally {
+    btn.classList.remove("is-busy");
+    btn.disabled = false;
+    btn.innerHTML = originalLabel;
+  }
+}
+
+interface ActionConfig {
+  handler: () => void | Promise<void>;
+  /** Async actions render a busy state. Sync ones fire and forget. */
+  busy?: boolean;
+  /** Label to show inside the button while it's running. */
+  busyLabel?: string;
+}
+
 function bindActionButtons(): void {
-  const map: Record<string, () => void | Promise<void>> = {
-    "load-demo": loadDemo,
-    "refresh-policies": loadPolicies,
-    "refresh-timeline": loadTimeline,
-    "preset-safe-transfer": presetSafeTransfer,
-    "preset-over-cap": presetOverCap,
-    "preset-forbidden-approve": presetForbiddenApprove,
-    "preset-unknown-destination": presetUnknownDest,
-    "modal-copy": copyJsonModal,
-    "modal-close": () => closeJsonModal(),
+  const map: Record<string, ActionConfig> = {
+    // Async actions hit the API and should show a busy state. The Quick
+    // Demo path posts a policy that the server then anchors on 0G storage,
+    // which can take 5-30s on Galileo — the loader keeps the UI honest.
+    "load-demo": { handler: loadDemo, busy: true, busyLabel: "Loading demo" },
+    "refresh-policies": { handler: loadPolicies, busy: true, busyLabel: "Refreshing" },
+    "refresh-timeline": { handler: loadTimeline, busy: true, busyLabel: "Refreshing" },
+    // Synchronous form-fill helpers. No await, no busy state.
+    "preset-safe-transfer": { handler: presetSafeTransfer },
+    "preset-over-cap": { handler: presetOverCap },
+    "preset-forbidden-approve": { handler: presetForbiddenApprove },
+    "preset-unknown-destination": { handler: presetUnknownDest },
+    "modal-copy": { handler: copyJsonModal },
+    "modal-close": { handler: () => closeJsonModal() },
   };
-  for (const [action, handler] of Object.entries(map)) {
+  for (const [action, cfg] of Object.entries(map)) {
     document
       .querySelectorAll<HTMLButtonElement>(`[data-action="${action}"]`)
       .forEach((el) => {
         el.addEventListener("click", (e) => {
           e.preventDefault();
-          void handler();
+          if (cfg.busy) {
+            void runWithBusyState(el, cfg.busyLabel ?? "Working", cfg.handler);
+          } else {
+            void cfg.handler();
+          }
         });
       });
   }
