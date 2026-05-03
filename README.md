@@ -90,6 +90,16 @@ When the verdict is `BLOCK` and the policy has `remediation.onBlock` workflow id
 - Helper script: [`scripts/kh.sh`](./scripts/kh.sh) — `list / get / run / status / ping` subcommands
 - Verified workflow: `8c12ujo1ax7b93w21updd` fired during demo against the live KeeperHub API
 
+### Gensyn AXL — decision gossip over the agent mesh
+
+Every `BLOCK` decision is published to a local Gensyn AXL bridge node so co-operating ChainShield gates running on other machines can react over the AXL mesh without a centralised relay. The transport is soft-failure: an offline AXL node never blocks the risk gate, and HTML or oversized error bodies are collapsed before they reach the logs.
+
+- Adapter: [`src/transport/axlGossip.ts`](./src/transport/axlGossip.ts)
+- Publish call site: [`src/transport/axlGossip.ts`](./src/transport/axlGossip.ts) — `POST ${AXL_BASE_URL}/api/v1/mcp/publish` with a `{ topic, payload: { decision, policy } }` body
+- Engine hook: [`src/core/engine.ts`](./src/core/engine.ts) — broadcast is invoked from `handleRemediation` after the playbook runner, so the verdict and remediation are already settled when the mesh sees it
+- Server wiring: [`src/risk-gate/server.ts`](./src/risk-gate/server.ts) — picks `AxlGossipTransport` when `AXL_BASE_URL` is set, falls back to `NoopGossip` otherwise
+- Default node: `http://127.0.0.1:9002` (the documented AXL local HTTP bridge)
+
 ---
 
 ## How to run

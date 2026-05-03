@@ -169,4 +169,57 @@ describe("DecisionEngine — Phase 2 remediation", () => {
     expect(failureReason).toBeTruthy();
     expect(failureReason!.length).toBeLessThanOrEqual(280);
   });
+
+  it("broadcasts every BLOCK decision through the gossip transport when one is configured", async () => {
+    const store = new InMemoryStore();
+    const calls: Array<{ decisionId: string; verdict: string; policyId: string }> = [];
+    const gossip = {
+      async broadcast(decision: { id: string; verdict: string }, policy: { id: string }) {
+        calls.push({ decisionId: decision.id, verdict: decision.verdict, policyId: policy.id });
+      },
+    };
+    let counter = 0;
+    const engine = new DecisionEngine({
+      store,
+      gossip,
+      now: () => 1_700_000_000_000,
+      idGen: () => `dec-${++counter}`,
+    });
+    const policy = makePolicy({
+      id: "policy-gossip",
+      rules: { maxTransferEth: 1 },
+    });
+    const decision = await engine.evaluate(
+      makeIntent({ value: "5000000000000000000" }),
+      policy,
+    );
+    expect(decision.verdict).toBe("BLOCK");
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toEqual({ decisionId: decision.id, verdict: "BLOCK", policyId: "policy-gossip" });
+  });
+
+  it("does not call the gossip transport on ALLOW or REQUIRE_HUMAN_CONFIRMATION verdicts", async () => {
+    const store = new InMemoryStore();
+    const calls: Array<{ decisionId: string }> = [];
+    const gossip = {
+      async broadcast(decision: { id: string }) {
+        calls.push({ decisionId: decision.id });
+      },
+    };
+    let counter = 0;
+    const engine = new DecisionEngine({
+      store,
+      gossip,
+      now: () => 1_700_000_000_000,
+      idGen: () => `dec-${++counter}`,
+    });
+    const policy = makePolicy({
+      rules: { allowedDestinations: [COLD_VAULT] },
+    });
+    const allow = await engine.evaluate(makeIntent({ to: COLD_VAULT, value: "1" }), policy);
+    expect(allow.verdict).toBe("ALLOW");
+    const confirm = await engine.evaluate(makeIntent({ to: ATTACKER, value: "1" }), policy);
+    expect(confirm.verdict).toBe("REQUIRE_HUMAN_CONFIRMATION");
+    expect(calls).toHaveLength(0);
+  });
 });
