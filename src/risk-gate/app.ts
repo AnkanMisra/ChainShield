@@ -3,10 +3,11 @@ import cors from "@fastify/cors";
 import { ZodError } from "zod";
 import type { AnchorRecord, Store } from "../memory/store.js";
 import { InMemoryStore } from "../memory/memoryStore.js";
-import { DecisionEngine } from "../core/engine.js";
+import { DecisionEngine, type DecisionEngineOptions } from "../core/engine.js";
 import { PolicyService } from "../core/policyService.js";
 import { evaluateRequestSchema, policyInputSchema } from "../core/schemas.js";
 import type { Decision, Policy } from "../core/types.js";
+import { HeuristicSimulator } from "../simulator/heuristic.js";
 
 export interface AppDeps {
   store?: Store;
@@ -16,9 +17,26 @@ export interface AppDeps {
 
 const DEFAULT_WEB_ORIGINS = ["http://127.0.0.1:4321", "http://localhost:4321"];
 
+/**
+ * Default engine wiring used by both `buildApp` (when no engine is injected)
+ * and `server.ts`. The simulator is always wired so test apps and the prod
+ * server have the same evaluation pipeline; the playbook runner and the
+ * notification channels stay opt-in because they require real credentials.
+ */
+export function defaultEngine(
+  store: Store,
+  overrides: Omit<DecisionEngineOptions, "store"> = {},
+): DecisionEngine {
+  return new DecisionEngine({
+    store,
+    simulator: new HeuristicSimulator(),
+    ...overrides,
+  });
+}
+
 export function buildApp(deps: AppDeps = {}): FastifyInstance {
   const store: Store = deps.store ?? new InMemoryStore();
-  const engine = deps.engine ?? new DecisionEngine({ store });
+  const engine = deps.engine ?? defaultEngine(store);
   const policyService = deps.policyService ?? new PolicyService(store);
 
   const app = Fastify({ logger: false });
