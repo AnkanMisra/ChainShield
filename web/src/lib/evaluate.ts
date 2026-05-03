@@ -8,7 +8,7 @@ import {
   verdictWord,
 } from "./format.js";
 import { showJsonModal } from "./modal.js";
-import { loadTimeline } from "./timeline.js";
+import { loadTimeline, markDecisionPending } from "./timeline.js";
 import { ATTACKER, COLD_VAULT, TOKEN, TREASURY } from "./policies.js";
 import type { Decision } from "./types.js";
 
@@ -44,6 +44,12 @@ export async function submitEvaluateForm(form: HTMLFormElement): Promise<void> {
     const r = await api<Decision>("POST", "/evaluate", body);
     stopLoader();
     renderEvaluate(r);
+    if (r.ok && r.data && typeof r.data === "object" && "id" in r.data) {
+      const created = r.data as Decision;
+      if (created.id && (!created.anchor || !created.anchor.rootHash)) {
+        markDecisionPending(created.id);
+      }
+    }
     await loadTimeline();
   } finally {
     setSubmitBusy(submitBtn, false, originalLabel);
