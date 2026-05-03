@@ -517,6 +517,48 @@ body::after {
   margin-top: 0.55rem;
   line-height: 1.55;
 }
+
+/* ---------- skeleton card (optimistic loader for Quick Demo) ---------- */
+.policy-card-skeleton {
+  border-color: var(--rule-soft);
+}
+.policy-card-skeleton:hover {
+  transform: none;
+  border-color: var(--rule-soft);
+}
+.skeleton {
+  display: inline-block;
+  position: relative;
+  overflow: hidden;
+  background: var(--ink-2);
+  border-radius: 2px;
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(244, 237, 226, 0.04) 50%,
+    transparent 100%
+  );
+  animation: skeleton-shimmer 1.4s linear infinite;
+}
+.skeleton-text { height: 0.85em; vertical-align: middle; }
+.skeleton-owner { width: 22ch; height: 0.85rem; }
+.skeleton-version { width: 4ch; height: 0.65rem; }
+.skeleton-id { width: 32ch; height: 0.7rem; margin-top: 0.4rem; }
+.skeleton-rules { width: 80%; height: 0.7rem; margin-top: 0.65rem; }
+.skeleton-pill {
+  width: 7rem;
+  height: 1.3rem;
+  vertical-align: middle;
+}
+@keyframes skeleton-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
 .empty {
   font-family: var(--mono);
   font-size: 0.78rem;
@@ -814,6 +856,42 @@ body::after {
   color: var(--paper-mute);
   font-style: italic;
   letter-spacing: 0.04em;
+}
+
+/* The pulsing "anchoring" pill shown while the 0G upload is in flight on
+ * the server. Same shape as `.anchor-pill` but rendered as a non-link
+ * <span>, with a subtle breathing background and a leading dot that
+ * pulses to communicate "still working". The dot reuses the masthead's
+ * status-dot pulse keyframe for visual consistency. */
+.anchor-pill-pending {
+  cursor: progress;
+  border-color: rgba(196, 255, 91, 0.25);
+  background: rgba(196, 255, 91, 0.04);
+  animation: anchor-pending-breathe 1.8s ease-in-out infinite;
+}
+.anchor-pill-pending:hover {
+  /* Pending pills are not clickable yet — neutralise the link-style hover */
+  background: rgba(196, 255, 91, 0.04);
+  border-color: rgba(196, 255, 91, 0.25);
+}
+.anchor-pill-pending::before {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-right: 0.1rem;
+  animation: pulse 1.4s infinite ease-in-out;
+}
+.anchor-pill-pending .anchor-pill-hash {
+  color: var(--paper-soft);
+  font-style: italic;
+  letter-spacing: 0.05em;
+}
+@keyframes anchor-pending-breathe {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
 }
 
 .reasons { list-style: none; padding: 0; margin: 0; }

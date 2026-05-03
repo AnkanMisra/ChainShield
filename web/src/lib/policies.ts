@@ -1,8 +1,19 @@
 import { api } from "./api.js";
-import { anchorPillHtml, escapeHtml, formatRules } from "./format.js";
+import { anchorPendingPillHtml, anchorPillHtml, escapeHtml, formatRules } from "./format.js";
 import { showJsonModal } from "./modal.js";
 import { summarizeZodIssues } from "./format.js";
 import type { Address, Hex, Policy } from "./types.js";
+
+/**
+ * Policy ids whose 0G anchor upload is still in flight on the server.
+ * Set + cleared by `pollForAnchor`. Used by `loadPolicies` to render the
+ * pulsing "anchoring" pill instead of the terminal "not anchored" pill
+ * for rows that are still being committed.
+ */
+const pendingAnchors = new Set<string>();
+
+const ANCHOR_POLL_INTERVAL_MS = 2_000;
+const ANCHOR_POLL_TIMEOUT_MS = 30_000;
 
 export const TREASURY: Address = "0x1111111111111111111111111111111111111111";
 export const COLD_VAULT: Address = "0x2222222222222222222222222222222222222222";
@@ -95,19 +106,7 @@ export async function loadPolicies(): Promise<void> {
     return;
   }
   list.innerHTML = r.data
-    .map(
-      (p) => `
-        <div class="policy-card">
-          <div class="policy-card-row">
-            <span class="policy-card-owner">${escapeHtml(p.owner)}</span>
-            <span class="policy-card-version">v${p.version}</span>
-          </div>
-          <div class="policy-card-id">${escapeHtml(p.id)}</div>
-          <div class="policy-card-rules">${escapeHtml(formatRules(p.rules))}</div>
-          <div class="policy-card-anchor">${anchorPillHtml(p.anchor)}</div>
-        </div>
-      `,
-    )
+    .map((p) => renderPolicyCard(p))
     .join("");
   select.innerHTML =
     '<option value="">— select a policy —</option>' +
@@ -119,8 +118,78 @@ export async function loadPolicies(): Promise<void> {
       .join("");
 }
 
+/**
+ * Render the active-policies list. Cards whose anchor is still uploading on
+ * the server (tracked in `pendingAnchors`) get the pulsing "anchoring" pill
+ * instead of the terminal "not anchored" pill. The set is updated by
+ * `pollForAnchor` and re-renders are triggered by `loadPolicies`.
+ */
+function renderPolicyCard(p: Policy): string {
+  const pillHtml =
+    p.anchor && p.anchor.rootHash
+      ? anchorPillHtml(p.anchor)
+      : pendingAnchors.has(p.id)
+        ? anchorPendingPillHtml()
+        : anchorPillHtml(undefined);
+  return `
+    <div class="policy-card" data-policy-id="${escapeHtml(p.id)}">
+      <div class="policy-card-row">
+        <span class="policy-card-owner">${escapeHtml(p.owner)}</span>
+        <span class="policy-card-version">v${p.version}</span>
+      </div>
+      <div class="policy-card-id">${escapeHtml(p.id)}</div>
+      <div class="policy-card-rules">${escapeHtml(formatRules(p.rules))}</div>
+      <div class="policy-card-anchor">${pillHtml}</div>
+    </div>
+  `;
+}
+
+/**
+ * Skeleton card injected into the policies list the moment the user clicks
+ * Quick Demo. It occupies the same vertical slot a real card would, with
+ * a shimmer animation across each row, so the eye lands in the right
+ * place. Replaced wholesale by `loadPolicies` once the POST returns
+ * (~50ms with the new async-anchor server path).
+ */
+function policySkeletonHtml(): string {
+  return `
+    <div class="policy-card policy-card-skeleton" aria-busy="true">
+      <div class="policy-card-row">
+        <span class="skeleton skeleton-text skeleton-owner"></span>
+        <span class="skeleton skeleton-text skeleton-version"></span>
+      </div>
+      <div class="skeleton skeleton-text skeleton-id"></div>
+      <div class="skeleton skeleton-text skeleton-rules"></div>
+      <div class="policy-card-anchor"><span class="skeleton skeleton-pill"></span></div>
+    </div>
+  `;
+}
+
+/**
+ * Click Quick Demo:
+ *   1. Render a skeleton card immediately so the user gets visual feedback.
+ *   2. POST the policy in background. With the server's fire-and-forget
+ *      anchoring, this returns in ~50ms instead of 5-30s.
+ *   3. Replace the skeleton with the real card by reloading the list.
+ *      The new card's anchor pill shows "anchoring" while polling runs.
+ *   4. Poll GET /policies/:id every 2s for up to 30s. When the anchor
+ *      lands on the server it shows up in the response; we update the set
+ *      and re-render so the pill flips to the lime "0G | 0xroot…" link.
+ */
 export async function loadDemo(): Promise<void> {
-  await api("POST", "/policies", {
+  const list = document.getElementById("policies-list");
+  if (list) list.innerHTML = policySkeletonHtml();
+
+  // Pre-fill the evaluate form regardless of POST latency.
+  const f = document.getElementById("evaluate-form") as HTMLFormElement | null;
+  if (f) {
+    const fromEl = findField(f, "from");
+    const toEl = findField(f, "to");
+    if (fromEl) fromEl.value = TREASURY;
+    if (toEl) toEl.value = COLD_VAULT;
+  }
+
+  const r = await api<Policy>("POST", "/policies", {
     owner: TREASURY,
     rules: {
       maxTransferEth: 1,
@@ -130,16 +199,56 @@ export async function loadDemo(): Promise<void> {
     },
     remediation: { onBlock: [], notifyChannels: ["collector"] },
   });
+
+  if (r.ok && r.data && typeof r.data === "object" && "id" in r.data) {
+    const created = r.data as Policy;
+    if (!created.anchor || !created.anchor.rootHash) {
+      pendingAnchors.add(created.id);
+      void pollForAnchor(created.id);
+    }
+  }
+
   await loadPolicies();
+
   const select = document.getElementById("policy-select") as HTMLSelectElement | null;
   if (select && select.options.length > 1 && select.options[1]) {
     select.value = select.options[1].value;
   }
-  const f = document.getElementById("evaluate-form") as HTMLFormElement | null;
-  if (f) {
-    const fromEl = findField(f, "from");
-    const toEl = findField(f, "to");
-    if (fromEl) fromEl.value = TREASURY;
-    if (toEl) toEl.value = COLD_VAULT;
+}
+
+/**
+ * Poll GET /policies/:id every {@link ANCHOR_POLL_INTERVAL_MS}ms. Stops when
+ * the response includes a non-empty rootHash (anchor landed) or after
+ * {@link ANCHOR_POLL_TIMEOUT_MS}ms (assume the upload failed silently — the
+ * pill drops back to the terminal "not anchored" state).
+ *
+ * Intentionally tolerant: any non-2xx, network blip, or shape mismatch just
+ * keeps the polling loop running until the timeout. The user sees a worst
+ * case of a 30s pulsing pill that quietly resolves.
+ */
+async function pollForAnchor(policyId: string): Promise<void> {
+  const start = performance.now();
+  while (performance.now() - start < ANCHOR_POLL_TIMEOUT_MS) {
+    await new Promise((resolve) => setTimeout(resolve, ANCHOR_POLL_INTERVAL_MS));
+    const r = await api<Policy>("GET", `/policies/${encodeURIComponent(policyId)}`);
+    if (
+      r.ok &&
+      r.data &&
+      typeof r.data === "object" &&
+      "anchor" in r.data &&
+      r.data.anchor &&
+      typeof r.data.anchor === "object" &&
+      "rootHash" in r.data.anchor &&
+      typeof r.data.anchor.rootHash === "string" &&
+      r.data.anchor.rootHash.length > 0
+    ) {
+      pendingAnchors.delete(policyId);
+      await loadPolicies();
+      return;
+    }
   }
+  // Timed out — drop the pending state and re-render so the pill flips to
+  // the terminal "not anchored" marker.
+  pendingAnchors.delete(policyId);
+  await loadPolicies();
 }

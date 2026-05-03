@@ -73,6 +73,22 @@ const STORAGESCAN = "https://storagescan-galileo.0g.ai";
 const CHAINSCAN = "https://chainscan-galileo.0g.ai";
 
 /**
+ * Pill state for a row that has been written to the in-memory cache but
+ * whose 0G anchor is still uploading in the background. Shown while the
+ * frontend polls /policies/:id for the anchor to land. Pulsing accent dot
+ * + "anchoring" text — no link yet because there's no rootHash to point
+ * at. The CSS animation lives in `.anchor-pill-pending` in global.css.
+ */
+export function anchorPendingPillHtml(): string {
+  return (
+    '<span class="anchor-pill anchor-pill-pending" title="Anchoring decision on 0G Galileo testnet — typically 5-15s">' +
+    '<span class="anchor-pill-label">0G</span>' +
+    '<span class="anchor-pill-hash">anchoring</span>' +
+    "</span>"
+  );
+}
+
+/**
  * Returns trusted HTML that is safe to insert via `innerHTML`.
  *
  * The output escapes user-controlled bytes from `anchor.rootHash` and
