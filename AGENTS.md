@@ -18,7 +18,7 @@ This hackathon submission is **TypeScript on Bun, end to end**. There is no Rust
 - Validation: Zod (boundary only — internal code trusts typed values)
 - Onchain client: `ethers` v6 (peer dep of the 0G storage SDK)
 - 0G persistence: `@0gfoundation/0g-storage-ts-sdk`
-- Frontend: Astro 6 at `web/` + a static legacy UI at `public/index.html`
+- Frontend: Astro 6 at `web/` (vanilla TS, no React/Vue)
 - Tests: `bun:test` (Jest-compatible)
 - Containerization: Docker (multi-stage on `oven/bun:1.3-alpine`)
 
@@ -28,7 +28,7 @@ This hackathon submission is **TypeScript on Bun, end to end**. There is no Rust
 bun install                # install deps from bun.lock
 bun run dev                # start risk-gate server with watch on 127.0.0.1:8787
 bun run start              # production-style boot (no watch)
-bun test                   # 68 specs across 9 files
+bun test                   # 90 specs across 10 files
 bun run test:coverage      # v8 coverage report
 bun run typecheck          # tsc --noEmit, must exit 0
 bun run build              # bundle to ./dist/server.js
@@ -53,8 +53,7 @@ docker compose up --build  # builds and runs on host port 8787
 - `src/cli/demo.ts` — `bun run demo` four-scene CLI
 - `tests/` — `bun:test` specs covering engine rules, policy service, the API, simulator, playbooks, 0G store, anchor surfacing
 - `web/` — Astro 6 frontend (components, lib modules, pages, styles)
-- `public/index.html` — legacy single-page browser UI served at `/`
-- `docs/` — architecture, product story, sponsor research notes
+- `docs/` — architecture, submission, demo script, product story, sponsor research notes
 - `scripts/` — `kh.sh` (KeeperHub helper), `dev.sh` (parallel server + frontend dev)
 - `.claude/skills/` — reusable agent skills for repeated tasks. Note: `rust-backend-style/`, `solidity-contracts/`, and `sponsor-wiring/` describe the post-hackathon Rust port, not the current code.
 

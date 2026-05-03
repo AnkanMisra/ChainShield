@@ -17,8 +17,8 @@ Design for the ChainShield product, mapped onto the sponsor APIs that ship in th
 | Persistence — write path | `@0gfoundation/0g-storage-ts-sdk` against Galileo testnet, anchoring policy + decision JSON. Falls back to in-memory when `ZERO_G_PRIVATE_KEY` is unset. |
 | Persistence — read path | In-memory cache (anchored writes are best-effort durability, not the read source) |
 | Remediation execution | KeeperHub REST (`https://app.keeperhub.com/api/workflow/{id}/execute`) via `fetch` |
-| Browser UI | Astro 6 at `web/`, plus a static legacy UI at `public/index.html` |
-| Tests | `bun:test` (68 specs across 9 files at the time of writing) |
+| Browser UI | Astro 6 at `web/` (vanilla TS, no React/Vue) |
+| Tests | `bun:test` (90 specs across 10 files at the time of writing) |
 | Containerization | Docker (`oven/bun:1`) |
 
 ## Current Module Map (`src/`)
@@ -49,7 +49,6 @@ ETHGlobal-2026-Agentic-Hack/
 │       └── demo.ts                 # `bun run demo` four-scene runner
 ├── tests/                          # bun:test specs
 ├── web/                            # Astro 6 frontend
-├── public/index.html               # legacy single-file UI
 ├── docs/                           # this file + sponsor research notes
 └── scripts/                        # kh.sh, dev.sh
 ```
@@ -102,7 +101,7 @@ chainshield/
 ├── infra/
 │   ├── axl-node/                  # build + run script for the local AXL node
 │   └── keeperhub-templates/       # JSON workflow definitions
-└── public/index.html              # browser UI (unchanged from Phase 1 scaffold)
+└── web/                           # Astro 6 frontend (unchanged from the TS submission)
 ```
 
 Empty crates are not pre-created. Each is added with code in the same commit.
@@ -113,7 +112,7 @@ How the crates collaborate at runtime, with the trait seams that keep external d
 
 ```mermaid
 flowchart TB
-    UI[Browser UI<br/>public/index.html]
+    UI[Astro frontend<br/>web/]
     API[risk-gate crate<br/>axum server]
     Eng[engine crate<br/>orchestrator]
     Core[core crate<br/>types + rules]
@@ -287,7 +286,6 @@ Identical to the TypeScript scaffold; the Rust server reimplements it byte-for-b
 
 ```
 GET  /health                           -> { "status": "ok" }
-GET  /                                 -> public/index.html
 POST /policies          body PolicyInput   -> Policy (201)
 PUT  /policies/:id      body PolicyInput   -> Policy
 GET  /policies/:id                          -> Policy (404 if missing)
@@ -306,7 +304,12 @@ Language-neutral algorithm. Implemented identically in both the TS scaffold and 
 2. **Quantitative caps** — `value > maxTransferEth` -> `BLOCK` (risk 90); 24h outflow projection -> `BLOCK` (risk 88).
 3. **Approval cap** — `selector == approve` and amount > `approvalCapByToken[token]` -> `BLOCK` (risk 92).
 4. **Allowlist match** — `to` not in `allowedDestinations` -> downgrade `ALLOW` to `REQUIRE_HUMAN_CONFIRMATION` (risk 60).
-5. **Simulation** — run in REVM; revert -> at least `REQUIRE_HUMAN_CONFIRMATION` (risk 70).
+5. **Simulation** — TS scaffold runs the heuristic ERC-20 calldata decoder in `src/simulator/heuristic.ts` (planned Rust port: `revm`); revert -> at least `REQUIRE_HUMAN_CONFIRMATION` (risk 70).
+
+Defensive escalations (TS scaffold, return `REQUIRE_HUMAN_CONFIRMATION` rather than 500-ing on bad input):
+
+- `invalidIntentValue` — `intent.value` does not parse as a decimal wei `BigInt`.
+- `invalidApprovalCap` — `policy.rules.approvalCapByToken[token]` does not parse as a decimal wei `BigInt` (the schema rejects this at the API boundary; the engine guard catches anything that bypassed validation).
 6. **LLM reflection** — call 0G Inference. Always call `processResponse` to get TEE attestation. The LLM may enrich `reasons[]` and bump `riskScore` but cannot override the verdict ladder.
 7. **Persist** — append Decision to the timeline.
 8. **Trigger playbook** — if `BLOCK` and `policy.remediation.onBlock` is non-empty, attempt each id in order until one succeeds.

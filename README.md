@@ -134,7 +134,7 @@ docker compose up --build         # builds and runs on host port 8787
 
 ## What's verified
 
-- **68 specs across 9 files**, all green. Run with `bun test`.
+- **90 specs across 10 files**, all green. Run with `bun test`.
 - **TypeScript strict typecheck** clean. Run with `bun run typecheck`.
 - **Live 0G anchor** end-to-end on Galileo. RootHash and storage tx in the table at the top — verifiable on the public explorer.
 - **Four canonical scenes** through the CLI demo:
@@ -158,9 +158,8 @@ src/
 ├── risk-gate/       # Fastify app + server entrypoint
 └── cli/             # bun run demo — four-scene CLI
 
-tests/               # 68 bun:test specs
+tests/               # 90 bun:test specs across 10 files
 web/                 # Astro 6 frontend (components, lib, pages, styles)
-public/index.html    # legacy single-page UI
 scripts/             # kh.sh, dev.sh
 docs/                # submission, demo-script, architecture, sponsors
 ```
@@ -241,7 +240,7 @@ bun run start                     # production-style boot (no watch)
 bun run build                     # bundle + minify to ./dist/server.js
 bun run start:bundle              # run the bundled output
 bun run typecheck                 # tsc --noEmit
-bun test                          # 68 specs, ~250ms
+bun test                          # 90 specs across 10 files, ~280ms
 bun run test:coverage             # v8 coverage
 bun run demo                      # CLI four-scene runner
 

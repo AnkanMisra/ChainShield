@@ -6,7 +6,7 @@
 
 ## Progress
 
-**Done** — Phases 1-6 shipped. 68 tests green, typecheck clean. 0G anchor verified live on Galileo (rootHash + storage tx + block + gas all recorded below). PRs #1-5 merged; PR #6 ready for review.
+**Done** — Phases 1-6 shipped. 90 specs across 10 files green, server `tsc --noEmit` and Astro `astro check` both clean, Astro production build succeeds. 0G anchor verified live on Galileo (rootHash + storage tx + block + gas all recorded below). PR #6 bundles phases 3-6 onto `sponsor-features` and is ready for review.
 
 **Left** — cascade #6 onto `sponsor-features`, record demo per [`./demo-script.md`](./demo-script.md), submit.
 
@@ -111,17 +111,19 @@ For the Astro frontend specifically:
 ## Test coverage
 
 ```
-68 specs across 9 files · all green · ~250ms
+90 specs across 10 files · all green · ~280ms
 
 tests/api.test.ts                  Risk-Gate API end-to-end
 tests/apiAnchor.test.ts            Anchor surfacing on policy + decision responses
-tests/engine.test.ts               5-rule decision ladder
+                                   (incl. real ZeroGStore + buildApp e2e)
+tests/engine.test.ts               5-rule decision ladder + invalidIntentValue / invalidApprovalCap guards
 tests/engineRemediation.test.ts    Playbook trigger + notification fan-out
 tests/engineSimulation.test.ts     Simulator integration + revert escalation
 tests/playbooks.test.ts            KeeperHub runner + mock runner + notifier channels
-tests/policyService.test.ts        Policy CRUD + version bumping
-tests/simulator.test.ts            HeuristicSimulator: ERC-20 decode + balance deltas
-tests/zeroGStore.test.ts           ZeroGStore: anchor on write, soft-failure on upload error
+tests/policyService.test.ts        Policy CRUD + version bumping + schema rejection
+tests/simulator.test.ts            HeuristicSimulator: ERC-20 decode + balance deltas + typed approvals[]
+tests/zeroGStore.test.ts           ZeroGStore: anchor on write, soft-failure, empty-result handling
+tests/webFormat.test.ts            Astro shortHash + anchorPillHtml + escapeHtml edge cases
 ```
 
 ## Demo flow (3 minutes)
