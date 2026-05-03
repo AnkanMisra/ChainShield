@@ -10,7 +10,7 @@ export class PolicyService {
     private readonly idGen: () => string = randomUUID,
   ) {}
 
-  async create(input: unknown): Promise<Policy> {
+  async create(input: unknown, clientId?: string): Promise<Policy> {
     const parsed = policyInputSchema.parse(input);
     const policy: Policy = {
       id: this.idGen(),
@@ -20,12 +20,12 @@ export class PolicyService {
       version: 1,
       updatedAt: this.now(),
     };
-    await this.store.putPolicy(policy);
+    await this.store.putPolicy(policy, clientId);
     return policy;
   }
 
-  async update(id: string, input: PolicyInput): Promise<Policy> {
-    const existing = await this.store.getPolicy(id);
+  async update(id: string, input: PolicyInput, clientId?: string): Promise<Policy> {
+    const existing = await this.store.getPolicy(id, clientId);
     if (!existing) throw new Error(`Policy ${id} not found`);
     const policy: Policy = {
       ...existing,
@@ -35,15 +35,15 @@ export class PolicyService {
       version: existing.version + 1,
       updatedAt: this.now(),
     };
-    await this.store.putPolicy(policy);
+    await this.store.putPolicy(policy, clientId);
     return policy;
   }
 
-  get(id: string): Promise<Policy | null> {
-    return this.store.getPolicy(id);
+  get(id: string, clientId?: string): Promise<Policy | null> {
+    return this.store.getPolicy(id, clientId);
   }
 
-  list(owner?: Policy["owner"]): Promise<Policy[]> {
-    return this.store.listPolicies(owner);
+  list(owner?: Policy["owner"], clientId?: string): Promise<Policy[]> {
+    return this.store.listPolicies({ ...(owner !== undefined && { owner }), ...(clientId !== undefined && { clientId }) });
   }
 }

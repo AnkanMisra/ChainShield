@@ -88,8 +88,28 @@ export function buildApp(deps: AppDeps = {}): FastifyInstance {
 
   app.get("/health", async () => ({ status: "ok" }));
 
+  /**
+   * Read the per-browser session id from the request. The Astro frontend
+   * generates a UUID once on first load and stores it in localStorage; every
+   * fetch sends it back via `X-Client-Id`. The risk-gate scopes all CRUD
+   * operations to this id so Browser A cannot see Browser B's policies or
+   * timeline rows.
+   *
+   * Requests without the header (curl, the demo CLI, integration tests) get
+   * `undefined` and the Store reverts to "no filter" — i.e. global view —
+   * which is the legacy behaviour and is still useful for admin / debug.
+   */
+  function clientIdOf(req: { headers: Record<string, unknown> }): string | undefined {
+    const raw = req.headers["x-client-id"];
+    if (typeof raw !== "string") return undefined;
+    const trimmed = raw.trim();
+    // Cap at 128 chars to bound the dimension of the in-memory store.
+    if (trimmed.length === 0 || trimmed.length > 128) return undefined;
+    return trimmed;
+  }
+
   app.post("/policies", async (req, reply) => {
-    const policy = await policyService.create(req.body);
+    const policy = await policyService.create(req.body, clientIdOf(req));
     reply.status(201);
     return withAnchorPolicy(policy);
   });
@@ -98,7 +118,7 @@ export function buildApp(deps: AppDeps = {}): FastifyInstance {
     const { id } = req.params as { id: string };
     const parsed = policyInputSchema.parse(req.body);
     try {
-      return withAnchorPolicy(await policyService.update(id, parsed));
+      return withAnchorPolicy(await policyService.update(id, parsed, clientIdOf(req)));
     } catch (err) {
       reply.status(404);
       return { error: "NotFound", message: (err as Error).message };
@@ -107,7 +127,7 @@ export function buildApp(deps: AppDeps = {}): FastifyInstance {
 
   app.get("/policies/:id", async (req, reply) => {
     const { id } = req.params as { id: string };
-    const policy = await policyService.get(id);
+    const policy = await policyService.get(id, clientIdOf(req));
     if (!policy) {
       reply.status(404);
       return { error: "NotFound" };
@@ -117,13 +137,14 @@ export function buildApp(deps: AppDeps = {}): FastifyInstance {
 
   app.get("/policies", async (req) => {
     const { owner } = req.query as { owner?: string };
-    const list = await policyService.list(owner as `0x${string}` | undefined);
+    const list = await policyService.list(owner as `0x${string}` | undefined, clientIdOf(req));
     return list.map(withAnchorPolicy);
   });
 
   app.post("/evaluate", async (req, reply) => {
     const body = evaluateRequestSchema.parse(req.body);
-    const policy = await policyService.get(body.policyId);
+    const cid = clientIdOf(req);
+    const policy = await policyService.get(body.policyId, cid);
     if (!policy) {
       reply.status(404);
       return { error: "PolicyNotFound" };
@@ -135,15 +156,17 @@ export function buildApp(deps: AppDeps = {}): FastifyInstance {
         message: "Policy owner must match intent.from.",
       };
     }
-    return withAnchorDecision(await engine.evaluate(body.intent, policy));
+    return withAnchorDecision(await engine.evaluate(body.intent, policy, cid));
   });
 
   app.get("/timeline", async (req) => {
     const q = req.query as { owner?: string; from?: string; to?: string };
+    const cid = clientIdOf(req);
     const list = await store.listDecisions({
       owner: q.owner as `0x${string}` | undefined,
       from: q.from ? Number(q.from) : undefined,
       to: q.to ? Number(q.to) : undefined,
+      ...(cid !== undefined && { clientId: cid }),
     });
     return list.map(withAnchorDecision);
   });
