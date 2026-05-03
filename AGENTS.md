@@ -86,7 +86,7 @@ docker compose up --build  # builds and runs on host port 8787
 ### Branches
 
 - Feature branches: `feature/<short-name>`.
-- Default base for PRs: `sponsor-features`.
+- Default base for PRs: `main`.
 
 ## Decision-engine contract (do not break)
 

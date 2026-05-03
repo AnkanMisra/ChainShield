@@ -95,8 +95,8 @@ When the verdict is `BLOCK` and the policy has `remediation.onBlock` workflow id
 
 ```sh
 # 1. clone and install
-git clone https://github.com/anurag-p6/ETHGlobal-2026-Agentic-Hack
-cd ETHGlobal-2026-Agentic-Hack
+git clone https://github.com/AnkanMisra/ChainShield
+cd ChainShield
 bun install
 
 # 2. configure
@@ -182,12 +182,12 @@ docs/                # submission, demo-script, architecture, sponsors
 
 | Phase | Scope | PR |
 |---|---|---|
-| 1 — Foundation | policy schema, decision engine, API, in-memory store, UI, Docker | [#1](https://github.com/anurag-p6/ETHGlobal-2026-Agentic-Hack/pull/1) merged |
-| 2 — Actionability | KeeperHub runner, notification channels, JSON modal | [#2](https://github.com/anurag-p6/ETHGlobal-2026-Agentic-Hack/pull/2) merged |
-| 3 — Astro frontend | port UI to Astro at `web/`, CORS, parallel dev script | [#3](https://github.com/anurag-p6/ETHGlobal-2026-Agentic-Hack/pull/3) merged |
-| 4 — Simulator | heuristic ERC-20 simulator, revert-based escalation | [#4](https://github.com/anurag-p6/ETHGlobal-2026-Agentic-Hack/pull/4) merged |
-| 5 — Demo CLI | `bun run demo` four-scene CLI | [#5](https://github.com/anurag-p6/ETHGlobal-2026-Agentic-Hack/pull/5) merged |
-| 6 — 0G Storage | anchor on Galileo, surface rootHash in API + UI | [#6](https://github.com/anurag-p6/ETHGlobal-2026-Agentic-Hack/pull/6) ready, live-verified |
+| 1 — Foundation | policy schema, decision engine, API, in-memory store, UI, Docker | [#1](https://github.com/AnkanMisra/ChainShield/pull/1) merged |
+| 2 — Actionability | KeeperHub runner, notification channels, JSON modal | [#2](https://github.com/AnkanMisra/ChainShield/pull/2) merged |
+| 3 — Astro frontend | port UI to Astro at `web/`, CORS, parallel dev script | [#3](https://github.com/AnkanMisra/ChainShield/pull/3) merged |
+| 4 — Simulator | heuristic ERC-20 simulator, revert-based escalation | [#4](https://github.com/AnkanMisra/ChainShield/pull/4) merged |
+| 5 — Demo CLI | `bun run demo` four-scene CLI | [#5](https://github.com/AnkanMisra/ChainShield/pull/5) merged |
+| 6 — 0G Storage | anchor on Galileo, surface rootHash in API + UI | [#6](https://github.com/AnkanMisra/ChainShield/pull/6) merged, live-verified |
 
 **De-scoped.** 0G Compute / LLM reflection (stretch), Gensyn AXL (no clear demo angle), Rust + Solidity port (post-hackathon — see [`docs/architecture.md`](./docs/architecture.md) for the design).
 

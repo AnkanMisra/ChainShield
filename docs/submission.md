@@ -6,9 +6,9 @@
 
 ## Progress
 
-**Done** — Phases 1-6 shipped. 90 specs across 10 files green, server `tsc --noEmit` and Astro `astro check` both clean, Astro production build succeeds. 0G anchor verified live on Galileo (rootHash + storage tx + block + gas all recorded below). PR #6 bundles phases 3-6 onto `sponsor-features` and is ready for review.
+**Done** — Phases 1-6 shipped and merged to `main`. 90 specs across 10 files green, server `tsc --noEmit` and Astro `astro check` both clean, Astro production build succeeds. 0G anchor verified live on Galileo (rootHash + storage tx + block + gas all recorded below).
 
-**Left** — cascade #6 onto `sponsor-features`, record demo per [`./demo-script.md`](./demo-script.md), submit.
+**Left** — record demo per [`./demo-script.md`](./demo-script.md), submit at the ETHGlobal portal.
 
 **De-scoped** — 0G Compute (stretch), Gensyn AXL, Rust + Solidity port (post-hackathon).
 
@@ -132,4 +132,4 @@ See [`./demo-script.md`](./demo-script.md) for the verbatim screen-recording wal
 
 ## Repo
 
-`https://github.com/anurag-p6/ETHGlobal-2026-Agentic-Hack` — branch `sponsor-features`.
+`https://github.com/AnkanMisra/ChainShield` — branch `main`.

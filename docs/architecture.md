@@ -24,7 +24,7 @@ Design for the ChainShield product, mapped onto the sponsor APIs that ship in th
 ## Current Module Map (`src/`)
 
 ```
-ETHGlobal-2026-Agentic-Hack/
+ChainShield/
 ├── src/
 │   ├── core/
 │   │   ├── types.ts                # Policy, TxIntent, Decision, SimulationResult
