@@ -59,10 +59,17 @@ export class ZeroGStore implements Store {
     }
   }
 
+  /**
+   * Tracks every in-flight 0G upload by row id so tests + the API admin
+   * route can `await` for the anchor to land. In production nothing awaits
+   * this — `putPolicy`/`appendDecision` return immediately after the local
+   * write so the request hot path stays under 50ms instead of 5-30s.
+   */
+  private pending = new Map<string, Promise<void>>();
+
   async putPolicy(policy: Policy): Promise<void> {
     this.policies.set(policy.id, policy);
-    const anchor = await this.tryAnchor(`policy:${policy.id}`, JSON.stringify(policy));
-    if (anchor) this.anchors.set(policy.id, anchor);
+    this.scheduleAnchor(policy.id, `policy:${policy.id}`, JSON.stringify(policy));
   }
 
   async getPolicy(id: string): Promise<Policy | null> {
@@ -78,8 +85,36 @@ export class ZeroGStore implements Store {
 
   async appendDecision(decision: Decision): Promise<void> {
     this.decisions.push(decision);
-    const anchor = await this.tryAnchor(`decision:${decision.id}`, JSON.stringify(decision));
-    if (anchor) this.anchors.set(decision.id, anchor);
+    this.scheduleAnchor(decision.id, `decision:${decision.id}`, JSON.stringify(decision));
+  }
+
+  /**
+   * Awaits the background anchor upload for a single row. Used by tests so
+   * they can assert anchor presence after the upload settles, without
+   * coupling production code to a synchronous wait. Resolves immediately
+   * if no upload was scheduled for that id (e.g. wrong id, or anchor
+   * already finished).
+   */
+  async waitForAnchor(id: string): Promise<void> {
+    const p = this.pending.get(id);
+    if (p) await p;
+  }
+
+  private scheduleAnchor(rowId: string, label: string, json: string): void {
+    // Kick off the upload but DO NOT await — production callers return as
+    // soon as the in-memory write is done. The promise is parked in
+    // `pending` so tests + admin tooling can settle it.
+    const p = this.tryAnchor(label, json)
+      .then((anchor) => {
+        if (anchor) this.anchors.set(rowId, anchor);
+      })
+      .finally(() => {
+        // Only delete if the entry still points at this promise — a
+        // subsequent overwrite of the same id (rare for policies, never
+        // for decisions) would replace it and we don't want to clobber.
+        if (this.pending.get(rowId) === p) this.pending.delete(rowId);
+      });
+    this.pending.set(rowId, p);
   }
 
   async listDecisions(filter: {
