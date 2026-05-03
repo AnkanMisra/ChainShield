@@ -31,7 +31,6 @@
 | **Test suite** | 109 specs / 13 files / 317 assertions / `~340 ms` cold |
 | **Type safety** | `tsc --noEmit` + `astro check`, both zero-error, strict + `noUncheckedIndexedAccess` |
 | **Sponsors integrated** | 0G Storage, KeeperHub, Gensyn AXL, Discord webhooks |
-| **Total addressable prizes** | **`$25,000`** (0G `$15k` + KeeperHub `$5k` + Gensyn `$5k`) |
 | **Lines of TypeScript (server)** | `~1,700` across `src/` |
 | **Runtime** | Bun `1.3.13` (CI and local pinned via `.bun-version`) |
 | **Frontend** | Astro 6 at [`web/`](./web), separate Bun workspace |
