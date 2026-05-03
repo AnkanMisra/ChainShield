@@ -31,13 +31,31 @@ If the wallet is unfunded or the testnet is unreachable, the API still serves th
 
 ## Sponsor integrations
 
-### 0G Storage (Phase 6, wired and live-probed)
+### 0G Storage (Phase 6, wired and **live-verified end-to-end**)
 
 - `src/memory/zeroGStore.ts` implements the existing `Store` interface
 - Each `putPolicy` / `appendDecision` JSON-serializes the object, uploads via `Indexer.upload(new MemData(buf), rpc, signer)` against the public Galileo storage indexer at `https://indexer-storage-testnet-turbo.0g.ai`
-- Returned `rootHash` + `txHash` are stored in an in-process anchor map keyed by id
+- Returned `rootHash` + `txHash` are stored in an in-process anchor map keyed by id and surfaced on the API as a top-level `anchor` field
 - Reads serve from the in-memory cache (no testnet round trip on the hot path)
-- Live probe confirmed end-to-end: SDK reaches indexer, picks storage nodes, computes merkle root, submits storage tx (only the gas payment fails when the demo wallet is unfunded — graceful fallback works)
+- Upload failures (unfunded wallet, indexer down) are logged and the local write still succeeds — the API never blocks on storage availability
+
+**On-chain proof of one live anchor (recorded during testing):**
+
+| Field | Value |
+|---|---|
+| Anchor wallet | `0xF838D07667716120Ba7CD52AC3b3b5BDC7110c48` |
+| Policy id | `5a461d0e-bbbb-41d7-a810-addcda8bfc3f` |
+| 0G storage rootHash | `0x574aaf45e85ddcccac847ab6ebfbbd24c52f99bfa8034d4199d2fab660bd3901` |
+| Storage tx hash | `0xac7e0e7331ef99766e9ffc6ebfb5f6da2701fe64087824b2b4f91d04ceb58a17` |
+| Block number | 31238985 |
+| Gas used | 292,394 |
+| Faucet tx | `0x2c8492994d5ea7c6dcd6d64d1930aecf3b8152268f1e3d8097779cfdbd75823d` |
+
+Verify independently:
+
+- Storage record by rootHash: <https://storagescan-galileo.0g.ai/tx/0x574aaf45e85ddcccac847ab6ebfbbd24c52f99bfa8034d4199d2fab660bd3901>
+- Storage tx on Galileo explorer: <https://chainscan-galileo.0g.ai/tx/0xac7e0e7331ef99766e9ffc6ebfb5f6da2701fe64087824b2b4f91d04ceb58a17>
+- Wallet activity: <https://chainscan-galileo.0g.ai/address/0xF838D07667716120Ba7CD52AC3b3b5BDC7110c48>
 
 ### KeeperHub (Phase 2, wired)
 
