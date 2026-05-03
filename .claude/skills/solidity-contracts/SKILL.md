@@ -5,6 +5,8 @@ description: Use when authoring or reviewing the onchain layer of ChainShield. C
 
 # solidity-contracts
 
+> **Post-hackathon plan.** Cut from the May 3 2026 ETHGlobal submission. No `contracts/` directory exists in the repo yet. This skill describes what to build when the onchain layer comes online after the hackathon.
+
 The onchain layer is intentionally minimal. Off-chain code is the source of truth for everything except: (1) verifiable policy version anchoring, and (2) optional timelocked emergency funds.
 
 ## What we put on chain

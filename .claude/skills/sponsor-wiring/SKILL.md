@@ -5,9 +5,23 @@ description: Use when starting Phase 2 work to add the 0G, KeeperHub, or Gensyn 
 
 # sponsor-wiring
 
-ChainShield ships Phase 1 as a TypeScript scaffold. Phase 2 ports the engine to Rust and wires up real sponsor clients. This skill is the recipe for each integration.
+The architectural rule: every external dependency goes behind a trait/interface. The engine never imports a sponsor SDK or HTTP URL directly.
 
-The architectural rule: every external dependency goes behind a trait. The engine never imports a sponsor SDK or HTTP URL directly.
+## Hackathon shipping reality (TypeScript)
+
+The hackathon submission ships TypeScript. The Rust patterns below describe the post-hackathon target — they are the same trait names and the same JSON shapes, but the immediate code lives in `src/`:
+
+| Sponsor | TypeScript impl | Status |
+|---|---|---|
+| KeeperHub | `src/playbooks/keeperhub.ts` — `KeeperHubRunner` against `POST /api/workflow/{id}/execute` (singular path; the docs at the time wrote it as `workflows` plural and were wrong — verified end-to-end with real `executionId`) | done, in PR #2 |
+| Notifications | `src/playbooks/notifier.ts` — `WebhookChannel` (Discord-shaped) + `CollectorChannel` for tests | done, in PR #2 |
+| 0G Storage | not yet wired — TypeScript adapter `src/memory/zeroGStore.ts` is the next gap | next-up |
+| 0G Inference | not yet wired — would live at `src/inference/zeroGInference.ts` | stretch |
+| AXL mesh | out of scope for hackathon | post-hackathon |
+
+When adding the next sponsor in TypeScript: mirror the trait pattern from `src/memory/store.ts` and `src/playbooks/runner.ts`. Concrete clients accept their config (URL + key) via constructor; the engine takes the interface, not the impl.
+
+## Adoption order (post-hackathon, Rust port)
 
 ## Adoption order
 
@@ -50,7 +64,7 @@ impl PlaybookRunner for KeeperHubRunner {
         -> Result<PlaybookRun, PlaybookError>
     {
         let res = self.http
-            .post(format!("{}/api/workflows/{}/execute", self.base_url, playbook_id))
+            .post(format!("{}/api/workflow/{}/execute", self.base_url, playbook_id))
             .bearer_auth(&self.api_key)
             .json(&serde_json::json!({
                 "inputs": {

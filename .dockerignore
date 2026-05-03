@@ -10,6 +10,9 @@ dist
 coverage
 .tsbuildinfo
 
+# the Astro frontend ships separately from this server image
+web
+
 # tests are not needed in the runtime image (kept out for size + perf)
 tests
 

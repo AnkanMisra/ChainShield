@@ -1,5 +1,5 @@
-import { join } from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
+import cors from "@fastify/cors";
 import { ZodError } from "zod";
 import type { AnchorRecord, Store } from "../memory/store.js";
 import { InMemoryStore } from "../memory/memoryStore.js";
@@ -8,13 +8,13 @@ import { PolicyService } from "../core/policyService.js";
 import { evaluateRequestSchema, policyInputSchema } from "../core/schemas.js";
 import type { Decision, Policy } from "../core/types.js";
 
-const UI_PATH = join(import.meta.dir, "..", "..", "public", "index.html");
-
 export interface AppDeps {
   store?: Store;
   engine?: DecisionEngine;
   policyService?: PolicyService;
 }
+
+const DEFAULT_WEB_ORIGINS = ["http://127.0.0.1:4321", "http://localhost:4321"];
 
 export function buildApp(deps: AppDeps = {}): FastifyInstance {
   const store: Store = deps.store ?? new InMemoryStore();
@@ -22,6 +22,10 @@ export function buildApp(deps: AppDeps = {}): FastifyInstance {
   const policyService = deps.policyService ?? new PolicyService(store);
 
   const app = Fastify({ logger: false });
+
+  const envOrigin = process.env.WEB_ORIGIN;
+  const origin = envOrigin ? envOrigin.split(",").map((s) => s.trim()) : DEFAULT_WEB_ORIGINS;
+  app.register(cors, { origin });
 
   function anchorOf(id: string): AnchorRecord | undefined {
     return store.getAnchor?.(id);
@@ -47,11 +51,6 @@ export function buildApp(deps: AppDeps = {}): FastifyInstance {
   });
 
   app.get("/health", async () => ({ status: "ok" }));
-
-  app.get("/", async (_req, reply) => {
-    const html = await Bun.file(UI_PATH).text();
-    reply.type("text/html").send(html);
-  });
 
   app.post("/policies", async (req, reply) => {
     const policy = await policyService.create(req.body);
