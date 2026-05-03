@@ -1,0 +1,101 @@
+version: 2
+
+# ChainShield uses Bun, not npm. Dependabot reads `package.json` from both
+# Bun workspaces and proposes minor + patch bumps. The full CI suite must
+# pass before any PR can merge — that's where Bun installs the bumped deps
+# (--frozen-lockfile against the regenerated `bun.lock`) and re-runs the
+# 90 bun:test specs, the typechecks, and the Astro build.
+
+updates:
+  # Root server workspace (Fastify, Zod, ethers, 0g-storage SDK, types).
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - server
+    commit-message:
+      prefix: chore(deps)
+      include: scope
+    groups:
+      # Type definitions never break runtime behaviour, batch them.
+      types:
+        applies-to: version-updates
+        patterns:
+          - "@types/*"
+      # Patch-only bumps are extremely unlikely to break anything.
+      runtime-patches:
+        applies-to: version-updates
+        update-types:
+          - patch
+    ignore:
+      # ethers v6 is a peer dep of @0gfoundation/0g-storage-ts-sdk; the SDK
+      # currently warns on ^6.13.4. Avoid noisy major bumps until the SDK
+      # publishes a release that explicitly supports a newer ethers major.
+      - dependency-name: ethers
+        update-types:
+          - version-update:semver-major
+
+  # Astro frontend workspace.
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - web
+    commit-message:
+      prefix: chore(deps-web)
+      include: scope
+    groups:
+      astro:
+        applies-to: version-updates
+        patterns:
+          - astro
+          - "@astrojs/*"
+      runtime-patches:
+        applies-to: version-updates
+        update-types:
+          - patch
+
+  # Pin the GitHub Actions in `.github/workflows/*.yml` to up-to-date major
+  # tags so we get security patches for the runner-side actions
+  # (oven-sh/setup-bun, actions/checkout). Major upgrades land as PRs.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    labels:
+      - dependencies
+      - ci
+    commit-message:
+      prefix: chore(actions)
+      include: scope
+
+  # Dockerfile base image (oven/bun:1.3-alpine). Patch-level bumps land
+  # automatically; major tags need a manual review.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    labels:
+      - dependencies
+      - docker
+    commit-message:
+      prefix: chore(docker)
+      include: scope
