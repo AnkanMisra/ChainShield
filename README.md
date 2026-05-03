@@ -16,7 +16,7 @@
   <img alt="status" src="https://img.shields.io/badge/status-shipped-success?style=flat-square">
 </p>
 
-> Built for **ETHGlobal OpenAgents 2026**. TypeScript on Bun, end to end. No Rust. No Solidity.
+> Built for **ETHGlobal OpenAgents 2026**. TypeScript on Bun, end to end.
 
 ---
 
