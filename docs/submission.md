@@ -4,6 +4,14 @@
 **Sponsors used:** 0G (Storage anchor on Galileo testnet) · KeeperHub (auto-remediation playbooks)
 **Stack:** TypeScript on Bun · Fastify · Zod · ethers v6 · `@0gfoundation/0g-storage-ts-sdk` · Astro frontend
 
+## Progress
+
+**Done** — Phases 1-6 shipped. 68 tests green, typecheck clean. 0G anchor verified live on Galileo (rootHash + storage tx + block + gas all recorded below). PRs #1-5 merged; PR #6 ready for review.
+
+**Left** — cascade #6 onto `sponsor-features`, record demo per [`./demo-script.md`](./demo-script.md), submit.
+
+**De-scoped** — 0G Compute (stretch), Gensyn AXL, Rust + Solidity port (post-hackathon).
+
 ## What it does
 
 ChainShield is a **policy-bound risk gate** that sits in front of any wallet or treasury and intercepts onchain transaction intents before they reach the chain. Every intent gets evaluated against deterministic rules, optionally simulated, and returns one of three verdicts:

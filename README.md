@@ -21,16 +21,20 @@ flowchart LR
 
 ## Project status
 
-| Phase | Scope | Status | PR |
-|---|---|---|---|
-| 1 — Foundation | policy schema, decision engine, risk-gate API, in-memory store, browser UI, Docker | merged | #1 |
-| 2 — Actionability | KeeperHub playbook runner + notification channels, JSON modal, error hardening | open (ready) | #2 |
-| 3 — Astro frontend | port browser UI to Astro at `web/`, CORS, parallel dev script | open (ready) | #3 |
-| 4 — Simulator | heuristic ERC-20 simulator, revert-based verdict escalation | open (ready) | #4 |
-| 5 — Demo CLI | `bun run demo` driving the four canonical scenes against the live API | open (ready) | #5 |
-| 6 — 0G Storage | anchor policies + decisions on Galileo testnet, surface `rootHash` in API + UI | open (draft) | #6 |
+**Done** — 68 tests passing across 9 files · TypeScript strict typecheck clean · Bun 1.3 toolchain · 0G Storage anchor verified live on Galileo testnet.
 
-68 tests passing across 9 files · TypeScript strict typecheck clean · Bun 1.3 toolchain · live SDK probe confirmed Galileo storage indexer reachability.
+| Phase | Scope | PR | Status |
+|---|---|---|---|
+| 1 — Foundation | policy schema, decision engine, risk-gate API, in-memory store, browser UI, Docker | [#1](https://github.com/anurag-p6/ETHGlobal-2026-Agentic-Hack/pull/1) | merged |
+| 2 — Actionability | KeeperHub playbook runner + notification channels, JSON modal, error hardening | [#2](https://github.com/anurag-p6/ETHGlobal-2026-Agentic-Hack/pull/2) | merged |
+| 3 — Astro frontend | port UI to Astro at `web/`, CORS, parallel dev script | [#3](https://github.com/anurag-p6/ETHGlobal-2026-Agentic-Hack/pull/3) | merged |
+| 4 — Simulator | heuristic ERC-20 simulator, revert-based verdict escalation | [#4](https://github.com/anurag-p6/ETHGlobal-2026-Agentic-Hack/pull/4) | merged |
+| 5 — Demo CLI | `bun run demo` four canonical scenes against the live API | [#5](https://github.com/anurag-p6/ETHGlobal-2026-Agentic-Hack/pull/5) | merged |
+| 6 — 0G Storage | anchor policies + decisions on Galileo testnet, surface `rootHash` in API + UI | [#6](https://github.com/anurag-p6/ETHGlobal-2026-Agentic-Hack/pull/6) | ready, live-verified |
+
+**Left** — cascade phases 3-6 onto `sponsor-features` (one bundled retarget of #6 → `sponsor-features`), record the demo per [`docs/demo-script.md`](./docs/demo-script.md), submit to the ETHGlobal portal.
+
+**De-scoped** — 0G Compute / LLM reflection (stretch), Gensyn AXL (no clear demo angle), Rust + Solidity port (post-hackathon).
 
 ## Stack
 
