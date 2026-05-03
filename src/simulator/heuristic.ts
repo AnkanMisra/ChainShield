@@ -84,13 +84,21 @@ export class HeuristicSimulator implements Simulator {
       if (spender === ZERO_ADDRESS) {
         return revert("ERC-20 approve to zero address");
       }
-      // approve does not move balances; the engine uses approvalCapByToken to
-      // bound spender authority. Surface the spender + amount in the deltas so
-      // the UI can display "spender X authorized for N units" alongside the
-      // verdict.
-      return ok([
-        { token: intent.to, account: spender, delta: `+approval ${amount}` },
-      ]);
+      // approve never moves balances. Surface the spender + amount under
+      // `approvals[]` so the UI can render "spender X authorized for N" without
+      // breaking the BalanceDelta numeric-string contract.
+      return {
+        success: true,
+        balanceDeltas: [],
+        approvals: [
+          {
+            token: intent.to,
+            owner: intent.from,
+            spender,
+            amount: amount.toString(),
+          },
+        ],
+      };
     }
 
     // Unknown selector — note in revertReason but treat as success (we have

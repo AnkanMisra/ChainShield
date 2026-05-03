@@ -140,7 +140,7 @@ describe("HeuristicSimulator", () => {
   });
 
   describe("ERC-20 approve", () => {
-    it("emits an approval-style delta and never a balance move", async () => {
+    it("emits an approval entry with a numeric amount and never a balance move", async () => {
       const amount = 2n ** 256n - 1n;
       const intent = makeIntent({
         to: TOKEN,
@@ -148,10 +148,15 @@ describe("HeuristicSimulator", () => {
       });
       const result = await sim.simulate(intent);
       expect(result.success).toBe(true);
-      expect(result.balanceDeltas).toHaveLength(1);
-      expect(result.balanceDeltas[0]?.account.toLowerCase()).toBe(ATTACKER.toLowerCase());
-      expect(result.balanceDeltas[0]?.delta).toContain("approval");
-      expect(result.balanceDeltas[0]?.delta).toContain(amount.toString());
+      expect(result.balanceDeltas).toHaveLength(0);
+      expect(result.approvals).toHaveLength(1);
+      const approval = result.approvals?.[0];
+      expect(approval?.token.toLowerCase()).toBe(TOKEN.toLowerCase());
+      expect(approval?.owner.toLowerCase()).toBe(TREASURY.toLowerCase());
+      expect(approval?.spender.toLowerCase()).toBe(ATTACKER.toLowerCase());
+      expect(approval?.amount).toBe(amount.toString());
+      // contract: approval.amount must round-trip through BigInt
+      expect(BigInt(approval?.amount ?? "0")).toBe(amount);
     });
 
     it("reverts on approve to zero address", async () => {
