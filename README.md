@@ -32,52 +32,32 @@ flowchart LR
 
 68 tests passing across 9 files · TypeScript strict typecheck clean · Bun 1.3 toolchain · live SDK probe confirmed Galileo storage indexer reachability.
 
-## Backend direction
+## Stack
 
-The bulk of the production backend will be written in **Rust**:
+This hackathon submission is **TypeScript on Bun, end to end** — risk-gate server, decision engine, ERC-20 simulator, sponsor adapters, demo CLI, and Astro frontend. No Rust, no Solidity contracts in this repo. The architecture doc sketches a Rust + Solidity port as a post-hackathon roadmap; nothing onchain ships in this submission beyond the 0G Storage anchors.
 
-- decision engine (the deterministic policy evaluator)
-- transaction simulator (REVM-based)
-- sponsor adapters (KeeperHub, Gensyn AXL, and 0G where the SDK story allows)
-- risk-gate HTTP server (Axum)
-
-A small **Solidity** onchain layer will anchor policies and emit events that KeeperHub workflows can subscribe to:
-
-- `PolicyAnchor` contract: records `(owner, policyHash, version)` and emits `PolicyUpdated`
-- optional `EmergencyVault` contract: timelocked safe destination used by the `safe-vault-evac` playbook
-
-The current TypeScript implementation under `src/` is a **reference scaffold** that locks down the API contract, the policy schema, and the rule semantics. The Rust port reuses the JSON shapes (`Policy`, `TxIntent`, `Decision`) verbatim so the browser UI and the existing `tests/` specs remain a black-box conformance suite. Browser UI stays as a single static HTML file regardless of which backend serves it.
-
-See [`docs/architecture.md`](./docs/architecture.md) for the Rust workspace layout, the onchain contract sketches, and the migration order.
+| Layer | Tech |
+|---|---|
+| Runtime | Bun 1.3 |
+| HTTP server | Fastify 5 |
+| Schema validation | Zod |
+| Frontend | Astro 6 (`web/`) + a static legacy UI at `public/index.html` |
+| Tests | `bun:test` |
+| Sponsor SDKs | `@0gfoundation/0g-storage-ts-sdk`, `ethers` v6, KeeperHub REST |
 
 ## Requirements
 
-For the current TypeScript scaffold (Phase 1):
-
 - [Bun](https://bun.sh) 1.1+ (only required if running outside Docker)
 - Docker 24+ and Docker Compose v2 (only required for the containerized path)
-
-For the upcoming Rust + Solidity work (Phase 2+):
-
-- [Rust](https://rustup.rs) 1.83+ via `rustup`
-- [Foundry](https://book.getfoundry.sh) for Solidity (`forge`, `cast`, `anvil`)
 
 ```sh
 # install Bun (macOS/Linux/WSL)
 curl -fsSL https://bun.sh/install | bash
 
-# install Rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# install Foundry
-curl -L https://foundry.paradigm.xyz | bash && foundryup
-
 # verify
 bun --version          # >= 1.1.0
 docker --version       # >= 24.0
 docker compose version # v2.x
-rustc --version        # >= 1.83
-forge --version
 ```
 
 ---
@@ -104,7 +84,7 @@ That's it. The `dev` script auto-reloads on every file change.
 | `bun run build` | Bundle and minify the server to `./dist/server.js`. |
 | `bun run start:bundle` | Run the bundled output from `./dist`. |
 | `bun run typecheck` | Strict `tsc --noEmit` — must exit 0 before commits. |
-| `bun test` | Run the full test suite (13 specs, ~150ms). |
+| `bun test` | Run the full test suite (68 specs across 9 files, ~250ms). |
 | `bun test --watch` | Re-run tests on file change. |
 | `bun run test:coverage` | Run tests with v8 coverage report. |
 | `bun run clean` | Remove `dist/`, `coverage/`, `.tsbuildinfo`. |
