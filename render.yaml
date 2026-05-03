@@ -1,0 +1,61 @@
+# Render Blueprint for the ChainShield API service.
+#
+# Render reads this on first deploy via "New + -> Blueprint -> connect repo".
+# Subsequent pushes to `main` auto-deploy because `branch: main` is the
+# default and Render webhooks the repo for new commits.
+#
+# Frontend (Astro) is hosted on Cloudflare Pages — its config lives in the
+# Cloudflare dashboard, not here. See `docs/deploy.md` for the end-to-end
+# walkthrough.
+#
+# Free Web Service tier on Render:
+#   - 512 MB RAM, 0.1 vCPU
+#   - Sleeps after 15 min idle (mitigated by an UptimeRobot pinger; see docs)
+#   - 30-50s cold start when waking from sleep
+#   - 750 free instance hours / month per workspace
+#   - No credit card required
+#
+# Region: Oregon (US-West). Empirically the lowest-latency egress to 0G's
+# Galileo storage indexer and storage nodes (most are US-hosted), giving
+# 1.5-3 s anchor uploads vs 4-7 s from Frankfurt.
+
+services:
+  - type: web
+    name: chainshield-api
+    runtime: docker
+    region: oregon
+    plan: free
+    branch: main
+    dockerfilePath: ./Dockerfile
+    # Health check — Render polls this and only flips a deploy live once it
+    # returns 200. Matches the Fastify route in src/risk-gate/app.ts.
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      # Container-only knobs.
+      - key: HOST
+        value: "0.0.0.0"
+      - key: PORT
+        value: "8787"
+      # Allow the Cloudflare Pages production URL plus all preview deploys
+      # under the same Pages project. The trailing /regex/ is parsed by the
+      # CORS layer (see app.ts -> parseOriginEntry).
+      - key: WEB_ORIGIN
+        value: "https://chainshield.pages.dev,/^https:\\/\\/[a-z0-9-]+\\.chainshield\\.pages\\.dev$/"
+      # 0G testnet endpoints have working defaults baked into server.ts; only
+      # the private key is genuinely required and must be set as a secret in
+      # the Render dashboard (sync: false marks it as a manual fill-in).
+      - key: ZERO_G_RPC_URL
+        value: "https://evmrpc-testnet.0g.ai"
+      - key: ZERO_G_INDEXER_RPC
+        value: "https://indexer-storage-testnet-turbo.0g.ai"
+      - key: ZERO_G_PRIVATE_KEY
+        sync: false
+      # KeeperHub — set the API key as a secret in the dashboard.
+      - key: KEEPERHUB_API_URL
+        value: "https://app.keeperhub.com"
+      - key: KEEPERHUB_API_KEY
+        sync: false
+      # Optional Discord webhook for the discord notification channel.
+      - key: NOTIFY_DISCORD_WEBHOOK
+        sync: false

@@ -18,6 +18,22 @@ export interface AppDeps {
 const DEFAULT_WEB_ORIGINS = ["http://127.0.0.1:4321", "http://localhost:4321"];
 
 /**
+ * Parse a single comma-separated `WEB_ORIGIN` entry. Entries surrounded by
+ * forward slashes (e.g. `/\\.pages\\.dev$/`) are compiled as RegExp so that
+ * platforms like Cloudflare Pages — where production lives at
+ * `https://chainshield.pages.dev` and previews land at
+ * `https://<sha>.chainshield.pages.dev` — can be allowed with a single
+ * pattern. Plain entries pass through as literal strings, matching the
+ * behaviour the Astro dev origin has always used.
+ */
+function parseOriginEntry(raw: string): string | RegExp {
+  if (raw.length >= 2 && raw.startsWith("/") && raw.endsWith("/")) {
+    return new RegExp(raw.slice(1, -1));
+  }
+  return raw;
+}
+
+/**
  * Default engine wiring used by both `buildApp` (when no engine is injected)
  * and `server.ts`. The simulator is always wired so test apps and the prod
  * server have the same evaluation pipeline; the playbook runner and the
@@ -42,7 +58,9 @@ export function buildApp(deps: AppDeps = {}): FastifyInstance {
   const app = Fastify({ logger: false });
 
   const envOrigin = process.env.WEB_ORIGIN;
-  const origin = envOrigin ? envOrigin.split(",").map((s) => s.trim()) : DEFAULT_WEB_ORIGINS;
+  const origin = envOrigin
+    ? envOrigin.split(",").map((s) => parseOriginEntry(s.trim()))
+    : DEFAULT_WEB_ORIGINS;
   app.register(cors, { origin });
 
   function anchorOf(id: string): AnchorRecord | undefined {

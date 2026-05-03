@@ -8,6 +8,7 @@ Built for **ETHGlobal OpenAgents 2026**. TypeScript on Bun, end to end.
 |---|---|
 | Submission one-pager | [`docs/submission.md`](./docs/submission.md) |
 | Demo recording walkthrough | [`docs/demo-script.md`](./docs/demo-script.md) |
+| Deploy for $0 (Render + Cloudflare Pages) | [`docs/deploy.md`](./docs/deploy.md) |
 | System design | [`docs/architecture.md`](./docs/architecture.md) |
 | Sponsor research | [`docs/sponsors/`](./docs/sponsors) |
 | Coding conventions | [`AGENTS.md`](./AGENTS.md) |
