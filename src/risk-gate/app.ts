@@ -1,13 +1,13 @@
-import { join } from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
+import cors from "@fastify/cors";
 import { ZodError } from "zod";
-import type { Store } from "../memory/store.js";
+import type { AnchorRecord, Store } from "../memory/store.js";
 import { InMemoryStore } from "../memory/memoryStore.js";
-import { DecisionEngine } from "../core/engine.js";
+import { DecisionEngine, type DecisionEngineOptions } from "../core/engine.js";
 import { PolicyService } from "../core/policyService.js";
 import { evaluateRequestSchema, policyInputSchema } from "../core/schemas.js";
-
-const UI_PATH = join(import.meta.dir, "..", "..", "public", "index.html");
+import type { Decision, Policy } from "../core/types.js";
+import { HeuristicSimulator } from "../simulator/heuristic.js";
 
 export interface AppDeps {
   store?: Store;
@@ -15,12 +15,49 @@ export interface AppDeps {
   policyService?: PolicyService;
 }
 
+const DEFAULT_WEB_ORIGINS = ["http://127.0.0.1:4321", "http://localhost:4321"];
+
+/**
+ * Default engine wiring used by both `buildApp` (when no engine is injected)
+ * and `server.ts`. The simulator is always wired so test apps and the prod
+ * server have the same evaluation pipeline; the playbook runner and the
+ * notification channels stay opt-in because they require real credentials.
+ */
+export function defaultEngine(
+  store: Store,
+  overrides: Omit<DecisionEngineOptions, "store"> = {},
+): DecisionEngine {
+  return new DecisionEngine({
+    store,
+    simulator: new HeuristicSimulator(),
+    ...overrides,
+  });
+}
+
 export function buildApp(deps: AppDeps = {}): FastifyInstance {
-  const store = deps.store ?? new InMemoryStore();
-  const engine = deps.engine ?? new DecisionEngine({ store });
+  const store: Store = deps.store ?? new InMemoryStore();
+  const engine = deps.engine ?? defaultEngine(store);
   const policyService = deps.policyService ?? new PolicyService(store);
 
   const app = Fastify({ logger: false });
+
+  const envOrigin = process.env.WEB_ORIGIN;
+  const origin = envOrigin ? envOrigin.split(",").map((s) => s.trim()) : DEFAULT_WEB_ORIGINS;
+  app.register(cors, { origin });
+
+  function anchorOf(id: string): AnchorRecord | undefined {
+    return store.getAnchor?.(id);
+  }
+  function withAnchor<T extends { id: string }>(item: T): T & { anchor?: AnchorRecord } {
+    const a = anchorOf(item.id);
+    return a ? { ...item, anchor: a } : item;
+  }
+  function withAnchorPolicy(policy: Policy) {
+    return withAnchor(policy);
+  }
+  function withAnchorDecision(decision: Decision) {
+    return withAnchor(decision);
+  }
 
   app.setErrorHandler((err, _req, reply) => {
     if (err instanceof ZodError) {
@@ -33,22 +70,17 @@ export function buildApp(deps: AppDeps = {}): FastifyInstance {
 
   app.get("/health", async () => ({ status: "ok" }));
 
-  app.get("/", async (_req, reply) => {
-    const html = await Bun.file(UI_PATH).text();
-    reply.type("text/html").send(html);
-  });
-
   app.post("/policies", async (req, reply) => {
     const policy = await policyService.create(req.body);
     reply.status(201);
-    return policy;
+    return withAnchorPolicy(policy);
   });
 
   app.put("/policies/:id", async (req, reply) => {
     const { id } = req.params as { id: string };
     const parsed = policyInputSchema.parse(req.body);
     try {
-      return await policyService.update(id, parsed);
+      return withAnchorPolicy(await policyService.update(id, parsed));
     } catch (err) {
       reply.status(404);
       return { error: "NotFound", message: (err as Error).message };
@@ -62,12 +94,13 @@ export function buildApp(deps: AppDeps = {}): FastifyInstance {
       reply.status(404);
       return { error: "NotFound" };
     }
-    return policy;
+    return withAnchorPolicy(policy);
   });
 
   app.get("/policies", async (req) => {
     const { owner } = req.query as { owner?: string };
-    return policyService.list(owner as `0x${string}` | undefined);
+    const list = await policyService.list(owner as `0x${string}` | undefined);
+    return list.map(withAnchorPolicy);
   });
 
   app.post("/evaluate", async (req, reply) => {
@@ -84,16 +117,17 @@ export function buildApp(deps: AppDeps = {}): FastifyInstance {
         message: "Policy owner must match intent.from.",
       };
     }
-    return engine.evaluate(body.intent, policy);
+    return withAnchorDecision(await engine.evaluate(body.intent, policy));
   });
 
   app.get("/timeline", async (req) => {
     const q = req.query as { owner?: string; from?: string; to?: string };
-    return store.listDecisions({
+    const list = await store.listDecisions({
       owner: q.owner as `0x${string}` | undefined,
       from: q.from ? Number(q.from) : undefined,
       to: q.to ? Number(q.to) : undefined,
     });
+    return list.map(withAnchorDecision);
   });
 
   return app;

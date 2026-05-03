@@ -147,4 +147,53 @@ describe("DecisionEngine — Phase 1 deterministic rules", () => {
     const all = await store.listDecisions({});
     expect(all).toHaveLength(2);
   });
+
+  it("escalates to REQUIRE_HUMAN_CONFIRMATION when intent.value is not a decimal wei string", async () => {
+    const { engine } = makeEngine();
+    const policy = makePolicy({ rules: { maxTransferEth: 1 } });
+    const intent = makeIntent({ value: "not-a-number" });
+
+    const decision = await engine.evaluate(intent, policy);
+
+    expect(decision.verdict).toBe("REQUIRE_HUMAN_CONFIRMATION");
+    expect(decision.rulesMatched).toContain("invalidIntentValue");
+    expect(decision.riskScore).toBeGreaterThanOrEqual(70);
+    expect(decision.reasons.some((r) => r.includes("not a decimal wei string"))).toBe(true);
+  });
+
+  it("escalates when an approval cap on the policy is not a decimal wei string", async () => {
+    const { engine } = makeEngine();
+    const policy = makePolicy({
+      rules: {
+        approvalCapByToken: {
+          [TOKEN.toLowerCase() as `0x${string}`]: "infinite" as unknown as string,
+        },
+      },
+    });
+    const intent = makeIntent({ to: TOKEN, data: approveCalldata(ATTACKER, 1n) });
+
+    const decision = await engine.evaluate(intent, policy);
+
+    expect(decision.verdict).toBe("REQUIRE_HUMAN_CONFIRMATION");
+    expect(decision.rulesMatched).toContain("invalidApprovalCap");
+  });
+
+  it("does not let one corrupt historical entry break the daily-outflow rule", async () => {
+    const { engine, store } = makeEngine();
+    const policy = makePolicy({ rules: { maxDailyOutflowEth: 2 } });
+
+    await store.appendDecision({
+      id: "corrupt",
+      intent: { ...makeIntent(), value: "garbage" as unknown as string },
+      verdict: "ALLOW",
+      riskScore: 0,
+      rulesMatched: [],
+      reasons: [],
+      policyId: policy.id,
+      timestamp: 1_700_000_000_000,
+    });
+
+    const decision = await engine.evaluate(makeIntent({ value: "1" }), policy);
+    expect(decision.verdict).toBe("ALLOW");
+  });
 });

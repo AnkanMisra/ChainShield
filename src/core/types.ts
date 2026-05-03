@@ -37,10 +37,26 @@ export interface Policy {
   updatedAt: number;
 }
 
+export interface BalanceDelta {
+  token: Address;
+  account: Address;
+  /** Signed decimal string of the wei (or token-unit) movement. Always parseable as `BigInt`. */
+  delta: string;
+}
+
+export interface ApprovalDelta {
+  token: Address;
+  owner: Address;
+  spender: Address;
+  /** Decimal string of the approved amount. Parseable as `BigInt`. `MAX_UINT256` for infinite. */
+  amount: string;
+}
+
 export interface SimulationResult {
   success: boolean;
   revertReason?: string;
-  balanceDeltas: Array<{ token: Address; account: Address; delta: string }>;
+  balanceDeltas: BalanceDelta[];
+  approvals?: ApprovalDelta[];
   gasUsed?: string;
 }
 

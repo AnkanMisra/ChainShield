@@ -1,0 +1,26 @@
+---
+---
+
+<div id="json-modal" class="modal-backdrop hidden">
+  <div class="modal-card">
+    <div class="modal-header">
+      <h3 id="json-modal-title">JSON</h3>
+      <button type="button" class="modal-close" aria-label="close" data-action="modal-close">×</button>
+    </div>
+    <div id="json-modal-summary" class="modal-summary" style="display:none;"></div>
+    <div class="modal-body">
+      <pre id="json-modal-body"></pre>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-primary" id="json-modal-copy" data-action="modal-copy" style="padding:0.6rem 1.2rem; font-size:0.7rem;">Copy JSON</button>
+      <button type="button" class="btn-ghost" data-action="modal-close">Close</button>
+    </div>
+  </div>
+</div>
+
+<script is:inline>
+  // Stop the modal card from closing when clicked (only the backdrop should close).
+  document.addEventListener("DOMContentLoaded", () => {
+    document.querySelector("#json-modal .modal-card")?.addEventListener("click", (e) => e.stopPropagation());
+  });
+</script>

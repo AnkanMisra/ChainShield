@@ -1,5 +1,10 @@
 import type { Decision, Policy } from "../core/types.js";
 
+export interface AnchorRecord {
+  rootHash: string;
+  txHash: string;
+}
+
 export interface Store {
   putPolicy(policy: Policy): Promise<void>;
   getPolicy(id: string): Promise<Policy | null>;
@@ -10,4 +15,5 @@ export interface Store {
     from?: number;
     to?: number;
   }): Promise<Decision[]>;
+  getAnchor?(id: string): AnchorRecord | undefined;
 }

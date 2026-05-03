@@ -1,340 +1,258 @@
 # ChainShield Agent
 
-> Autonomous treasury and wallet protection — a policy-bound security agent that simulates, scores, and intercepts risky onchain actions before funds are lost.
+> A policy-bound risk gate for treasury wallets — every transaction passes a deterministic engine, gets simulated, gets anchored on 0G, and triggers KeeperHub remediation playbooks before it ever touches the chain.
 
-Built for **ETHGlobal OpenAgents 2026** with sponsor integrations planned for **0G**, **KeeperHub**, and **Gensyn AXL**.
+Built for **ETHGlobal OpenAgents 2026**. TypeScript on Bun, end to end.
 
-For the full product story, demo flow, and judge pitch, see [`docs/product-idea.md`](./docs/product-idea.md). For the system design and sponsor entry points, see [`docs/architecture.md`](./docs/architecture.md). Sponsor research notes live under [`docs/sponsors/`](./docs/sponsors). Project conventions for AI coding agents live in [`AGENTS.md`](./AGENTS.md).
+| | |
+|---|---|
+| Submission one-pager | [`docs/submission.md`](./docs/submission.md) |
+| Demo recording walkthrough | [`docs/demo-script.md`](./docs/demo-script.md) |
+| System design | [`docs/architecture.md`](./docs/architecture.md) |
+| Sponsor research | [`docs/sponsors/`](./docs/sponsors) |
+| Coding conventions | [`AGENTS.md`](./AGENTS.md) |
 
-## How it works at a glance
+---
+
+## Live on-chain proof
+
+A real policy was anchored on 0G Galileo testnet during testing. Anyone can independently verify these on the public explorers.
+
+| | |
+|---|---|
+| Anchor wallet | [`0xF838D07667716120Ba7CD52AC3b3b5BDC7110c48`](https://chainscan-galileo.0g.ai/address/0xF838D07667716120Ba7CD52AC3b3b5BDC7110c48) |
+| 0G storage rootHash | `0x574aaf45e85ddcccac847ab6ebfbbd24c52f99bfa8034d4199d2fab660bd3901` |
+| Storage tx | [`0xac7e0e73…ceb58a17`](https://chainscan-galileo.0g.ai/tx/0xac7e0e7331ef99766e9ffc6ebfb5f6da2701fe64087824b2b4f91d04ceb58a17) |
+| Block | 31238985 |
+| Gas | 292,394 |
+
+---
+
+## What it is
+
+Treasury and hot-wallet agents have no in-the-loop guard between an LLM's decision and the signed transaction that hits the chain. Existing wallets either ask the user to approve everything (Safe, MetaMask) or run opaque ML scoring (Blockaid, Forta). Neither lets the **owner** author explicit, auditable rules and have an autonomous remediation step when those rules are violated.
+
+ChainShield sits in front of the wallet and intercepts every transaction intent. A deterministic policy engine evaluates the intent against the owner's rules, runs a heuristic ERC-20 simulation, anchors the resulting decision JSON on 0G Storage, and — if the verdict is `BLOCK` — fires a KeeperHub remediation playbook (revoke approvals, evacuate to a cold vault, page the on-call). The decision returns to the caller as one of three verdicts: `ALLOW`, `REQUIRE_HUMAN_CONFIRMATION`, or `BLOCK`.
+
+The shape is a small TypeScript service: Fastify HTTP API, Astro frontend, in-memory cache fronting a 0G anchor, KeeperHub REST adapter behind an interface. No Rust, no Solidity. The verdict ladder is monotonic — rules can only escalate the verdict, never downgrade it.
+
+---
+
+## Architecture
 
 ```mermaid
 flowchart LR
-    Wallet[Wallet or Treasury] -->|tx intent| Gate[ChainShield<br/>Risk Gate]
-    Gate -->|ALLOW| Chain[(EVM Chain)]
-    Gate -->|BLOCK| Stop((blocked))
-    Gate -->|REQUIRE_HUMAN_<br/>CONFIRMATION| Human[Human review]
-    Gate --> Timeline[(Audit timeline<br/>0G Storage)]
-    Gate -->|on BLOCK| Playbook[Auto-remediation<br/>KeeperHub]
-    Playbook --> Chain
+    Caller[Wallet / treasury client]
+    API[Risk-gate API<br/>Fastify]
+    Engine[DecisionEngine<br/>5-rule ladder]
+    Sim[HeuristicSimulator<br/>ERC-20 decode + balance projection]
+    Store[ZeroGStore<br/>anchor + cache]
+    Playbook[KeeperHubRunner]
+    ZG[(0G Galileo<br/>storage indexer)]
+    KH[(KeeperHub<br/>workflow executor)]
+
+    Caller -->|POST /evaluate| API
+    API --> Engine
+    Engine -->|simulate| Sim
+    Engine -->|persist + anchor| Store
+    Store -->|"Indexer.upload(MemData(json))"| ZG
+    ZG -->|"&#123;rootHash, txHash&#125;"| Store
+    Engine -->|on BLOCK| Playbook
+    Playbook -->|"POST /api/workflow/:id/execute"| KH
+    Engine -->|verdict + anchor| API
+    API --> Caller
 ```
 
-## Project status
-
-| Phase | Scope | Status |
-|---|---|---|
-| Day 1 — Foundation | policy schema, decision engine, risk-gate API, in-memory store | done (TypeScript scaffold) |
-| Day 2 — Actionability | tx simulation, threat scoring, KeeperHub playbooks, notifications | next (Rust) |
-| Day 3 — Demo readiness | timeline UI, full explainability, attack scenarios, demo polish | pending |
-
-Current branch `feature/chainshield-mvp` ships a working risk gate with a browser UI, 13 passing tests, and Docker support.
-
-## Backend direction
-
-The bulk of the production backend will be written in **Rust**:
-
-- decision engine (the deterministic policy evaluator)
-- transaction simulator (REVM-based)
-- sponsor adapters (KeeperHub, Gensyn AXL, and 0G where the SDK story allows)
-- risk-gate HTTP server (Axum)
-
-A small **Solidity** onchain layer will anchor policies and emit events that KeeperHub workflows can subscribe to:
-
-- `PolicyAnchor` contract: records `(owner, policyHash, version)` and emits `PolicyUpdated`
-- optional `EmergencyVault` contract: timelocked safe destination used by the `safe-vault-evac` playbook
-
-The current TypeScript implementation under `src/` is a **reference scaffold** that locks down the API contract, the policy schema, and the rule semantics. The Rust port reuses the JSON shapes (`Policy`, `TxIntent`, `Decision`) verbatim so the browser UI and the existing `tests/` specs remain a black-box conformance suite. Browser UI stays as a single static HTML file regardless of which backend serves it.
-
-See [`docs/architecture.md`](./docs/architecture.md) for the Rust workspace layout, the onchain contract sketches, and the migration order.
-
-## Requirements
-
-For the current TypeScript scaffold (Phase 1):
-
-- [Bun](https://bun.sh) 1.1+ (only required if running outside Docker)
-- Docker 24+ and Docker Compose v2 (only required for the containerized path)
-
-For the upcoming Rust + Solidity work (Phase 2+):
-
-- [Rust](https://rustup.rs) 1.83+ via `rustup`
-- [Foundry](https://book.getfoundry.sh) for Solidity (`forge`, `cast`, `anvil`)
-
-```sh
-# install Bun (macOS/Linux/WSL)
-curl -fsSL https://bun.sh/install | bash
-
-# install Rust
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# install Foundry
-curl -L https://foundry.paradigm.xyz | bash && foundryup
-
-# verify
-bun --version          # >= 1.1.0
-docker --version       # >= 24.0
-docker compose version # v2.x
-rustc --version        # >= 1.83
-forge --version
-```
+Five trait-shaped seams keep every external dependency replaceable: `Store`, `Simulator`, `PlaybookRunner`, `NotificationChannel`, and the engine's `now()` / `idGen()` injectables. Tests use a fresh `InMemoryStore` and a `StaticSimulator` per spec; production wires `ZeroGStore` and `HeuristicSimulator`.
 
 ---
 
-## Quick start with Bun
+## Sponsor integrations
+
+### 0G Storage — anchored audit timeline
+
+Every policy and decision JSON is uploaded to 0G Galileo via `@0gfoundation/0g-storage-ts-sdk`. The returned `rootHash` and storage `txHash` are stored alongside the cached object and surfaced on every API response as a top-level `anchor` field, so anyone holding a decision id can reconstruct the on-chain proof.
+
+- Adapter: [`src/memory/zeroGStore.ts`](./src/memory/zeroGStore.ts)
+- Upload call site: [`src/memory/zeroGStore.ts:108`](./src/memory/zeroGStore.ts#L108) — `await this.indexer.upload(file, this.rpcUrl, this.signer)`
+- Server wiring: [`src/risk-gate/server.ts`](./src/risk-gate/server.ts) — picks `ZeroGStore` when `ZERO_G_PRIVATE_KEY` is set, falls back to `InMemoryStore` otherwise
+- API surface: [`src/risk-gate/app.ts`](./src/risk-gate/app.ts) — `withAnchorPolicy` / `withAnchorDecision` augment every response
+- Live proof: see the rootHash table at the top of this README. Storage explorer: <https://storagescan-galileo.0g.ai>
+
+### KeeperHub — auto-remediation playbooks
+
+When the verdict is `BLOCK` and the policy has `remediation.onBlock` workflow ids, the runner fires each id in order against the KeeperHub REST API. The returned `runId` is recorded on the decision and pushed through every configured `NotificationChannel`.
+
+- Adapter: [`src/playbooks/keeperhub.ts`](./src/playbooks/keeperhub.ts)
+- Execute call site: [`src/playbooks/keeperhub.ts:34`](./src/playbooks/keeperhub.ts#L34) — `POST /api/workflow/:id/execute` with bearer auth
+- HTML 404 / non-JSON error scrubbing: same file, `summarizeErrorBody` helper (so KeeperHub error pages never leak into UI reasons)
+- Helper script: [`scripts/kh.sh`](./scripts/kh.sh) — `list / get / run / status / ping` subcommands
+- Verified workflow: `8c12ujo1ax7b93w21updd` fired during demo against the live KeeperHub API
+
+---
+
+## How to run
 
 ```sh
+# 1. clone and install
+git clone https://github.com/anurag-p6/ETHGlobal-2026-Agentic-Hack
+cd ETHGlobal-2026-Agentic-Hack
 bun install
-bun run dev
-# open http://127.0.0.1:8787
+
+# 2. configure
+cp .env.example .env.local
+# edit .env.local to add KEEPERHUB_API_KEY and ZERO_G_PRIVATE_KEY (see "Funding" below)
+
+# 3. boot the API + UI together
+bun run dev                       # http://127.0.0.1:8787
+
+# 4. drive the four canonical scenes from the CLI
+bun run demo                      # exits 0 if all four verdicts match expected
 ```
 
-That's it. The `dev` script auto-reloads on every file change.
+### Funding the 0G wallet
 
-### All Bun commands
-
-| Command | What it does |
-|---|---|
-| `bun install` | Install dependencies from `bun.lock`. |
-| `bun install --frozen-lockfile` | CI-style install — fails if the lockfile would change. |
-| `bun install --production` | Install runtime dependencies only (skips `@types/bun`, `typescript`). |
-| `bun run dev` | Start the risk-gate server with file watching on `127.0.0.1:8787`. |
-| `bun run start` | Start the server **without** watching (use this for production runs). |
-| `bun run build` | Bundle and minify the server to `./dist/server.js`. |
-| `bun run start:bundle` | Run the bundled output from `./dist`. |
-| `bun run typecheck` | Strict `tsc --noEmit` — must exit 0 before commits. |
-| `bun test` | Run the full test suite (13 specs, ~150ms). |
-| `bun test --watch` | Re-run tests on file change. |
-| `bun run test:coverage` | Run tests with v8 coverage report. |
-| `bun run clean` | Remove `dist/`, `coverage/`, `.tsbuildinfo`. |
-
-### Bun environment overrides
-
-Set inline when launching:
+The 0G adapter only kicks in when `ZERO_G_PRIVATE_KEY` is set and the wallet has Galileo testnet balance. Generate a fresh throwaway key, then drip 0.1 0G:
 
 ```sh
-PORT=8788 HOST=0.0.0.0 bun run dev          # bind to all interfaces on port 8788
-PORT=9000 bun run start                      # production-style boot on port 9000
+# generate a fresh test wallet
+bun -e 'import { Wallet } from "ethers"; const w = Wallet.createRandom(); console.log("ADDRESS:", w.address); console.log("PRIVATE_KEY:", w.privateKey)'
+
+# paste ADDRESS at https://faucet.0g.ai (X login) or https://cloud.google.com/application/web3/faucet/0g/galileo (Google login)
+# paste PRIVATE_KEY into .env.local as ZERO_G_PRIVATE_KEY=0x...
 ```
 
-A full list of variables lives in `.env.example`. None are required for the Phase-1 build.
+Without funding the server still works — the in-memory store is the fallback and the API simply omits the `anchor` field. Anchoring is best-effort, never blocking.
+
+### Docker
+
+```sh
+docker compose up --build         # builds and runs on host port 8787
+```
 
 ---
 
-## Quick start with Docker
+## What's verified
 
-```sh
-# build and run in one step
-docker compose up --build
-
-# open http://127.0.0.1:8787
-```
-
-To stop: `docker compose down`.
-
-### All Docker commands (single container)
-
-```sh
-# build the image (tag = chainshield-agent)
-docker build -t chainshield-agent .
-
-# run it foreground, map port 8787
-docker run --rm -p 8787:8787 --name chainshield chainshield-agent
-
-# run detached
-docker run -d -p 8787:8787 --name chainshield chainshield-agent
-
-# follow logs
-docker logs -f chainshield
-
-# exec a shell inside the running container
-docker exec -it chainshield sh
-
-# stop and remove
-docker stop chainshield && docker rm chainshield
-
-# rebuild without cache (pin in case of stale layers)
-docker build --no-cache -t chainshield-agent .
-
-# inspect the image
-docker image inspect chainshield-agent
-docker history chainshield-agent
-```
-
-### All Docker Compose commands
-
-```sh
-# build and start (foreground)
-docker compose up --build
-
-# build and start (detached)
-docker compose up -d --build
-
-# follow logs from the chainshield service
-docker compose logs -f chainshield
-
-# show running services and health status
-docker compose ps
-
-# tail just the last 100 log lines
-docker compose logs --tail=100 chainshield
-
-# restart the service after a code change (rebuild)
-docker compose up -d --build chainshield
-
-# stop the stack but keep volumes/images
-docker compose down
-
-# nuke everything (containers, networks, images, volumes)
-docker compose down --rmi local --volumes --remove-orphans
-```
-
-### Docker environment overrides
-
-`docker-compose.yml` honors a host-side `PORT` if you want to map to a different port:
-
-```sh
-PORT=8788 docker compose up         # binds host 8788 → container 8787
-```
-
-Inside the container the server always listens on `0.0.0.0:8787` (set via `HOST` and `PORT` env in the Dockerfile).
+- **90 specs across 10 files**, all green. Run with `bun test`.
+- **TypeScript strict typecheck** clean. Run with `bun run typecheck`.
+- **Live 0G anchor** end-to-end on Galileo. RootHash and storage tx in the table at the top — verifiable on the public explorer.
+- **Four canonical scenes** through the CLI demo:
+  - Safe transfer to allowlisted vault → `ALLOW`, risk 0
+  - Over-cap transfer (5 ETH > 1 ETH cap) → `BLOCK`, risk 90
+  - Forbidden infinite `approve(attacker, MAX_UINT256)` → `BLOCK`, risk 95
+  - Off-allowlist destination → `REQUIRE_HUMAN_CONFIRMATION`, risk 60
+- **KeeperHub workflow execution** — workflow id `8c12ujo1ax7b93w21updd` fires on `BLOCK` and the run id round-trips into the decision record. Verifiable in the KeeperHub Runs tab.
+- **Soft-failure path** — when 0G upload errors or throws, the local write still succeeds, the warning is logged, the API returns the policy without the `anchor` field. Covered by `tests/zeroGStore.test.ts`.
 
 ---
 
-## Verify the server is up
+## Repo layout
 
-After either path, hit the health endpoint:
-
-```sh
-curl http://127.0.0.1:8787/health
-# {"status":"ok"}
 ```
+src/
+├── core/            # types, Zod schemas, policy service, decision engine
+├── memory/          # Store interface, InMemoryStore, ZeroGStore (0G anchor)
+├── simulator/       # Simulator interface, HeuristicSimulator (ERC-20 decode)
+├── playbooks/       # PlaybookRunner interface, KeeperHubRunner, notifiers
+├── risk-gate/       # Fastify app + server entrypoint
+└── cli/             # bun run demo — four-scene CLI
 
-Then open the UI at <http://127.0.0.1:8787>.
+tests/               # 90 bun:test specs across 10 files
+web/                 # Astro 6 frontend (components, lib, pages, styles)
+scripts/             # kh.sh, dev.sh
+docs/                # submission, demo-script, architecture, sponsors
+```
 
 ---
 
-## Environment variables
+## Built with
 
-Copy `.env.example` to `.env` and fill in only what you need (none required for the current Phase-1 in-memory build):
+- [Bun](https://bun.sh) 1.3 — runtime, package manager, test runner, bundler
+- [Fastify](https://fastify.dev) 5 + [`@fastify/cors`](https://github.com/fastify/fastify-cors)
+- [Zod](https://zod.dev) — request/response validation at the boundary
+- [ethers](https://docs.ethers.org/v6/) v6 — signer for 0G storage transactions
+- [`@0gfoundation/0g-storage-ts-sdk`](https://github.com/0gfoundation/0g-storage-ts-sdk) — Galileo testnet anchoring
+- [Astro](https://astro.build) 6 — frontend at `web/`
+- KeeperHub REST — workflow execution
 
-| Variable | Purpose | Phase |
+---
+
+## Status
+
+| Phase | Scope | PR |
 |---|---|---|
-| `PORT` | Risk-gate listen port (default `8787`) | 1 |
-| `HOST` | Listen host (default `127.0.0.1`; container default `0.0.0.0`) | 1 |
-| `ZERO_G_RPC_URL` | 0G Galileo RPC endpoint | 2 |
-| `ZERO_G_PRIVATE_KEY` | Wallet for 0G storage + inference | 2 |
-| `ZERO_G_INFERENCE_PROVIDER` | Provider address for `qwen-2.5-7b-instruct` | 2 |
-| `KEEPERHUB_API_URL` | Default `https://app.keeperhub.com` | 2 |
-| `KEEPERHUB_API_KEY` | API key for playbook execution | 2 |
-| `AXL_BASE_URL` | Local Gensyn AXL bridge (default `http://127.0.0.1:9002`) | 2+ |
+| 1 — Foundation | policy schema, decision engine, API, in-memory store, UI, Docker | [#1](https://github.com/anurag-p6/ETHGlobal-2026-Agentic-Hack/pull/1) merged |
+| 2 — Actionability | KeeperHub runner, notification channels, JSON modal | [#2](https://github.com/anurag-p6/ETHGlobal-2026-Agentic-Hack/pull/2) merged |
+| 3 — Astro frontend | port UI to Astro at `web/`, CORS, parallel dev script | [#3](https://github.com/anurag-p6/ETHGlobal-2026-Agentic-Hack/pull/3) merged |
+| 4 — Simulator | heuristic ERC-20 simulator, revert-based escalation | [#4](https://github.com/anurag-p6/ETHGlobal-2026-Agentic-Hack/pull/4) merged |
+| 5 — Demo CLI | `bun run demo` four-scene CLI | [#5](https://github.com/anurag-p6/ETHGlobal-2026-Agentic-Hack/pull/5) merged |
+| 6 — 0G Storage | anchor on Galileo, surface rootHash in API + UI | [#6](https://github.com/anurag-p6/ETHGlobal-2026-Agentic-Hack/pull/6) ready, live-verified |
+
+**De-scoped.** 0G Compute / LLM reflection (stretch), Gensyn AXL (no clear demo angle), Rust + Solidity port (post-hackathon — see [`docs/architecture.md`](./docs/architecture.md) for the design).
 
 ---
 
-## Browser walkthrough
+## Reference
 
-Once the server is up, http://127.0.0.1:8787 renders a single-page UI with three sections.
+<details>
+<summary>Environment variables</summary>
 
-### 1. Policies
+| Variable | Purpose | Default | Status |
+|---|---|---|---|
+| `PORT` | Risk-gate listen port | `8787` | wired |
+| `HOST` | Listen host | `127.0.0.1` | wired |
+| `KEEPERHUB_API_URL` | KeeperHub base URL | `https://app.keeperhub.com` | wired |
+| `KEEPERHUB_API_KEY` | KeeperHub workflow execution key | — | wired |
+| `NOTIFY_DISCORD_WEBHOOK` | Discord webhook for `discord` notify channel | — | optional |
+| `ZERO_G_RPC_URL` | 0G Galileo EVM RPC | `https://evmrpc-testnet.0g.ai` | wired |
+| `ZERO_G_INDEXER_RPC` | 0G storage indexer | `https://indexer-storage-testnet-turbo.0g.ai` | wired |
+| `ZERO_G_PRIVATE_KEY` | Wallet for 0G storage anchor signing | — | wired |
+| `ZERO_G_INFERENCE_PROVIDER` | 0G Compute provider address (discovered at runtime) | — | stub |
+| `AXL_BASE_URL` | Gensyn AXL bridge | `http://127.0.0.1:9002` | de-scoped |
+</details>
 
-| Field | What to put | Effect |
-|---|---|---|
-| **Owner address** | A 20-byte EVM address (e.g. `0x1111111111111111111111111111111111111111`) | The wallet whose outflows this policy guards. |
-| **Max transfer (ETH)** | A decimal number (e.g. `1`) | Per-tx native cap. Above → `BLOCK` (risk 90). |
-| **Max daily outflow (ETH)** | A decimal number (e.g. `3`) | 24h rolling cap. Above → `BLOCK` (risk 88). |
-| **Allowed destinations** | Comma-separated `0x` addresses (e.g. `0x2222...,0x3333...`) | Off-list → `REQUIRE_HUMAN_CONFIRMATION` (risk 60). Empty → no allowlist enforcement. |
-| **Forbidden selectors** | Comma-separated 4-byte selectors (e.g. `0x095ea7b3,0x23b872dd`) | Match → `BLOCK` (risk 95). Common: `0x095ea7b3` ERC-20 `approve`, `0x23b872dd` `transferFrom`, `0xa9059cbb` `transfer`. |
-
-**Shortcut:** click **Quick demo** to auto-create a sample policy (`maxTransferEth=1`, `maxDailyOutflowEth=3`, allowlist `[0x2222…2222]`, forbidden `[0x095ea7b3]`).
-
-### 2. Evaluate transaction intent
-
-| Field | What to put | Notes |
-|---|---|---|
-| **Policy** | Pick from dropdown | Created in section 1. |
-| **From** | `0x` address | Usually the policy owner. |
-| **To** | `0x` address | Destination contract or wallet. |
-| **Value (wei)** | Decimal wei (e.g. `1000000000000000000` = 1 ETH) | Use `0` for contract calls. |
-| **Chain ID** | Integer (default `16602` = Galileo) | Mainnet `1`, Sepolia `11155111`. |
-| **Calldata** | `0x` for plain transfer; otherwise hex-encoded call. First 4 bytes = function selector. | The selector is what *forbidden selectors* match against. |
-
-**Four preset buttons** reproduce the canonical demo scenarios:
-
-| Preset | Sends to | What you'll see |
-|---|---|---|
-| Safe transfer | Allowlisted vault, 0.5 ETH | `ALLOW`, risk 0 |
-| Over-cap | Allowlisted vault, 5 ETH | `BLOCK`, risk 90, rules `maxTransferEth` + `maxDailyOutflowEth` |
-| Forbidden approve | Token contract, `approve(attacker, MAX_UINT256)` | `BLOCK`, risk 95, rules `forbiddenSelectors` + `allowedDestinations` |
-| Unknown destination | Random off-list address, 0.1 ETH | `REQUIRE_HUMAN_CONFIRMATION`, risk 60 |
-
-### 3. Incident timeline
-
-Every `/evaluate` call appends a row. Click **Refresh** after each evaluation. The newest entry appears on top.
-
----
-
-## API reference
-
-All endpoints accept and return JSON.
+<details>
+<summary>API endpoints</summary>
 
 | Method | Path | Body | Returns |
 |---|---|---|---|
 | `GET` | `/health` | — | `{"status":"ok"}` |
-| `GET` | `/` | — | the browser UI |
-| `POST` | `/policies` | `PolicyInput` | `Policy` (201) |
+| `GET` | `/` | — | the legacy browser UI |
+| `POST` | `/policies` | `PolicyInput` | `Policy` (with `anchor`) |
 | `PUT` | `/policies/:id` | `PolicyInput` | `Policy` |
 | `GET` | `/policies/:id` | — | `Policy` (404 if missing) |
 | `GET` | `/policies?owner=0x…` | — | `Policy[]` |
-| `POST` | `/evaluate` | `{ policyId, intent }` | `Decision` (404 if policy missing) |
+| `POST` | `/evaluate` | `{ policyId, intent }` | `Decision` (with `anchor`) |
 | `GET` | `/timeline?owner=&from=&to=` | — | `Decision[]` |
 
-`PolicyInput`, `Policy`, `TxIntent`, and `Decision` are defined in [`src/core/types.ts`](./src/core/types.ts) and validated by [`src/core/schemas.ts`](./src/core/schemas.ts).
+`PolicyInput`, `Policy`, `TxIntent`, `Decision` — see [`src/core/types.ts`](./src/core/types.ts).
+</details>
 
-### Curl examples
+<details>
+<summary>Bun + Docker commands</summary>
 
 ```sh
-# create a policy
-POLICY_ID=$(curl -s -X POST http://127.0.0.1:8787/policies \
-  -H "Content-Type: application/json" \
-  -d '{
-    "owner": "0x1111111111111111111111111111111111111111",
-    "rules": { "maxTransferEth": 1, "allowedDestinations": ["0x2222222222222222222222222222222222222222"] }
-  }' | bun -e "console.log(JSON.parse(await Bun.stdin.text()).id)")
+# Bun
+bun install                       # install deps from bun.lock
+bun run dev                       # watch mode on :8787
+bun run start                     # production-style boot (no watch)
+bun run build                     # bundle + minify to ./dist/server.js
+bun run start:bundle              # run the bundled output
+bun run typecheck                 # tsc --noEmit
+bun test                          # 90 specs across 10 files, ~280ms
+bun run test:coverage             # v8 coverage
+bun run demo                      # CLI four-scene runner
 
-# evaluate a safe transfer
-curl -s -X POST http://127.0.0.1:8787/evaluate \
-  -H "Content-Type: application/json" \
-  -d "{
-    \"policyId\": \"$POLICY_ID\",
-    \"intent\": {
-      \"from\": \"0x1111111111111111111111111111111111111111\",
-      \"to\": \"0x2222222222222222222222222222222222222222\",
-      \"value\": \"500000000000000000\",
-      \"data\": \"0x\",
-      \"chainId\": 16602
-    }
-  }"
-
-# fetch the timeline
-curl -s http://127.0.0.1:8787/timeline | jq
+# Docker
+docker compose up --build         # build + run on :8787
+docker compose down               # stop the stack
+docker compose logs -f chainshield
 ```
-
----
-
-## Troubleshooting
-
-**Port 8787 already in use** — `lsof -ti:8787 | xargs kill` or run on a different port: `PORT=8788 bun run dev`.
-
-**Docker build cache stale** — `docker build --no-cache -t chainshield-agent .` or `docker compose build --no-cache`.
-
-**`bun: command not found` inside container** — make sure you're using the `oven/bun:1.3-alpine` base; do not mix with `node:*` images.
-
-**`bun install --frozen-lockfile` fails locally** — the lockfile diverges. Run `bun install` (no flag) to refresh it, then commit the new `bun.lock`.
-
-**Tests fail after pulling** — `bun install` first, then `bun test`. The lockfile is committed.
-
-**Compose container exits immediately** — `docker compose logs chainshield` to see why. Most common cause: another process is bound to port 8787 on the host.
+</details>
 
 ---
 
 ## License
 
-Hackathon-grade prototype. Treat as MIT-style for review purposes.
+Hackathon-grade prototype. Treat as MIT-style for review.

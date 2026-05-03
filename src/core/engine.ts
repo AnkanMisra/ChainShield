@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
-import type { Decision, Policy, TxIntent, Verdict } from "./types.js";
+import type { Decision, Policy, SimulationResult, TxIntent, Verdict } from "./types.js";
 import { ERC20_APPROVE, decodeUint256, selectorOf } from "./selectors.js";
 import type { Store } from "../memory/store.js";
 import type { NotificationChannel, PlaybookRunner } from "../playbooks/runner.js";
+import type { Simulator } from "../simulator/simulator.js";
 
 const ETH_DECIMALS = 18n;
 const WEI_PER_ETH = 10n ** ETH_DECIMALS;
@@ -34,10 +35,20 @@ function ethToWei(eth: number): bigint {
   return BigInt(whole ?? "0") * WEI_PER_ETH + BigInt(padded || "0");
 }
 
+function tryBigInt(s: string | undefined | null): bigint | null {
+  if (s === undefined || s === null || s === "") return null;
+  try {
+    return BigInt(s);
+  } catch {
+    return null;
+  }
+}
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface DecisionEngineOptions {
   store: Store;
+  simulator?: Simulator;
   playbookRunner?: PlaybookRunner;
   notificationChannels?: Record<string, NotificationChannel>;
   now?: () => number;
@@ -46,6 +57,7 @@ export interface DecisionEngineOptions {
 
 export class DecisionEngine {
   private readonly store: Store;
+  private readonly simulator: Simulator | undefined;
   private readonly runner: PlaybookRunner | undefined;
   private readonly channels: Record<string, NotificationChannel>;
   private readonly now: () => number;
@@ -53,6 +65,7 @@ export class DecisionEngine {
 
   constructor(opts: DecisionEngineOptions) {
     this.store = opts.store;
+    this.simulator = opts.simulator;
     this.runner = opts.playbookRunner;
     this.channels = opts.notificationChannels ?? {};
     this.now = opts.now ?? (() => Date.now());
@@ -89,8 +102,13 @@ export class DecisionEngine {
       return this.persist(earlyDecision);
     }
 
-    const valueWei = BigInt(intent.value);
-    if (policy.rules.maxTransferEth !== undefined) {
+    const valueWei = tryBigInt(intent.value);
+    if (valueWei === null) {
+      verdict = "REQUIRE_HUMAN_CONFIRMATION";
+      riskScore = Math.max(riskScore, 70);
+      rulesMatched.push("invalidIntentValue");
+      reasons.push(`Intent value "${intent.value}" is not a decimal wei string.`);
+    } else if (policy.rules.maxTransferEth !== undefined) {
       const cap = ethToWei(policy.rules.maxTransferEth);
       if (valueWei > cap) {
         verdict = "BLOCK";
@@ -102,7 +120,7 @@ export class DecisionEngine {
       }
     }
 
-    if (policy.rules.maxDailyOutflowEth !== undefined) {
+    if (policy.rules.maxDailyOutflowEth !== undefined && valueWei !== null) {
       const since = this.now() - DAY_MS;
       const recent = await this.store.listDecisions({
         owner: policy.owner,
@@ -110,7 +128,12 @@ export class DecisionEngine {
       });
       const usedWei = recent
         .filter((d) => d.verdict !== "BLOCK")
-        .reduce((sum, d) => sum + BigInt(d.intent.value), 0n);
+        .reduce((sum, d) => {
+          const v = tryBigInt(d.intent.value);
+          // Skip corrupt historical entries silently — a single bad row in the
+          // timeline must not break new evaluations.
+          return v === null ? sum : sum + v;
+        }, 0n);
       const projected = usedWei + valueWei;
       const cap = ethToWei(policy.rules.maxDailyOutflowEth);
       if (projected > cap) {
@@ -138,18 +161,32 @@ export class DecisionEngine {
       policy.rules.approvalCapByToken &&
       policy.rules.approvalCapByToken[intent.to.toLowerCase() as `0x${string}`] !== undefined
     ) {
-      const cap = BigInt(
-        policy.rules.approvalCapByToken[intent.to.toLowerCase() as `0x${string}`]!,
-      );
-      const amount = decodeUint256(intent.data, 1);
-      if (amount !== null && amount > cap) {
-        verdict = "BLOCK";
-        riskScore = Math.max(riskScore, 92);
-        rulesMatched.push("approvalCapByToken");
-        reasons.push(
-          `Approval amount ${amount} on token ${intent.to} exceeds cap of ${cap}.`,
-        );
+      const rawCap = policy.rules.approvalCapByToken[intent.to.toLowerCase() as `0x${string}`]!;
+      const cap = tryBigInt(rawCap);
+      if (cap === null) {
+        if (verdict === "ALLOW") verdict = "REQUIRE_HUMAN_CONFIRMATION";
+        riskScore = Math.max(riskScore, 70);
+        rulesMatched.push("invalidApprovalCap");
+        reasons.push(`Approval cap "${rawCap}" on token ${intent.to} is not a decimal wei string.`);
+      } else {
+        const amount = decodeUint256(intent.data, 1);
+        if (amount !== null && amount > cap) {
+          verdict = "BLOCK";
+          riskScore = Math.max(riskScore, 92);
+          rulesMatched.push("approvalCapByToken");
+          reasons.push(
+            `Approval amount ${amount} on token ${intent.to} exceeds cap of ${cap}.`,
+          );
+        }
       }
+    }
+
+    const simulation = await this.runSimulator(intent);
+    if (simulation && !simulation.success) {
+      if (verdict === "ALLOW") verdict = "REQUIRE_HUMAN_CONFIRMATION";
+      riskScore = Math.max(riskScore, 70);
+      rulesMatched.push("simulationRevert");
+      reasons.push(`Simulation reverted: ${simulation.revertReason ?? "unknown"}.`);
     }
 
     if (verdict === "ALLOW" && reasons.length === 0) {
@@ -165,6 +202,7 @@ export class DecisionEngine {
       reasons,
       policyId: policy.id,
       timestamp: this.now(),
+      ...(simulation ? { simulation } : {}),
     };
 
     if (decision.verdict === "BLOCK") {
@@ -172,6 +210,21 @@ export class DecisionEngine {
     }
 
     return this.persist(decision);
+  }
+
+  private async runSimulator(intent: TxIntent): Promise<SimulationResult | undefined> {
+    if (!this.simulator) return undefined;
+    try {
+      return await this.simulator.simulate(intent);
+    } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err);
+      const safe = raw.replace(/\s+/g, " ").trim().slice(0, 256);
+      return {
+        success: false,
+        revertReason: `simulator error: ${safe}`,
+        balanceDeltas: [],
+      };
+    }
   }
 
   private async persist(decision: Decision): Promise<Decision> {

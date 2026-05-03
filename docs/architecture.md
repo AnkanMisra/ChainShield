@@ -1,8 +1,67 @@
 # ChainShield Agent — Architecture
 
-Concrete design for the ChainShield product, mapped onto the three sponsor APIs (0G, KeeperHub, Gensyn AXL). The production backend is **Rust** with a small **Solidity** onchain layer; the existing TypeScript code under `src/` is the Phase 1 reference scaffold that locks down the API contract.
+Design for the ChainShield product, mapped onto the sponsor APIs that ship in this submission (0G Storage, KeeperHub) plus a sketch of stretch integrations (0G Inference, Gensyn AXL).
 
-## Tech Stack
+> **Implementation reality:** this hackathon submission is **100% TypeScript on Bun**. There is no Rust code and no Solidity contracts in the repo. The "Rust + Solidity" sections later in this document describe a future post-hackathon port, not anything shipping today. Anchoring policies on 0G is the only "onchain" surface in this submission.
+
+## Tech Stack (current — TypeScript on Bun)
+
+| Layer | Choice |
+|---|---|
+| Runtime | Bun 1.3 |
+| Risk gate API | Fastify 5 + `@fastify/cors` |
+| Schema validation | Zod |
+| Onchain client | `ethers` v6 (peer dep of the 0G SDK) |
+| Simulation | Heuristic ERC-20 calldata decode + balance projection in `src/simulator/heuristic.ts`. (No REVM — that was the original Rust plan.) |
+| LLM client | not wired (stretch) |
+| Persistence — write path | `@0gfoundation/0g-storage-ts-sdk` against Galileo testnet, anchoring policy + decision JSON. Falls back to in-memory when `ZERO_G_PRIVATE_KEY` is unset. |
+| Persistence — read path | In-memory cache (anchored writes are best-effort durability, not the read source) |
+| Remediation execution | KeeperHub REST (`https://app.keeperhub.com/api/workflow/{id}/execute`) via `fetch` |
+| Browser UI | Astro 6 at `web/` (vanilla TS, no React/Vue) |
+| Tests | `bun:test` (90 specs across 10 files at the time of writing) |
+| Containerization | Docker (`oven/bun:1`) |
+
+## Current Module Map (`src/`)
+
+```
+ETHGlobal-2026-Agentic-Hack/
+├── src/
+│   ├── core/
+│   │   ├── types.ts                # Policy, TxIntent, Decision, SimulationResult
+│   │   ├── schemas.ts              # Zod schemas at the API boundary
+│   │   ├── policyService.ts        # CRUD + version bumping
+│   │   └── engine.ts               # 5-rule decision ladder + simulator + remediation
+│   ├── memory/
+│   │   ├── store.ts                # Store interface (+ optional getAnchor)
+│   │   ├── memoryStore.ts          # InMemoryStore (default)
+│   │   └── zeroGStore.ts           # 0G Storage anchor adapter
+│   ├── simulator/
+│   │   ├── simulator.ts            # Simulator interface + NoopSimulator
+│   │   └── heuristic.ts            # ERC-20 decode + balance delta projection
+│   ├── playbooks/
+│   │   ├── runner.ts               # PlaybookRunner interface + MockRunner
+│   │   ├── keeperhub.ts            # KeeperHubRunner
+│   │   └── notifier.ts             # CollectorChannel + WebhookChannel
+│   ├── risk-gate/
+│   │   ├── app.ts                  # Fastify routes
+│   │   └── server.ts               # Composition root + env wiring
+│   └── cli/
+│       └── demo.ts                 # `bun run demo` four-scene runner
+├── tests/                          # bun:test specs
+├── web/                            # Astro 6 frontend
+├── docs/                           # this file + sponsor research notes
+└── scripts/                        # kh.sh, dev.sh
+```
+
+Trait seams (`Store`, `Simulator`, `PlaybookRunner`, `NotificationChannel`) keep sponsor adapters swappable without touching the engine.
+
+---
+
+# Future direction (post-hackathon)
+
+The remainder of this document sketches a Rust + Solidity port that was **not** built during the hackathon window. It is preserved as a design document for the post-event roadmap. Treat anything below this line as planned, not shipped.
+
+## Tech Stack (planned — Rust port)
 
 | Layer | Choice | Reason |
 |---|---|---|
@@ -16,12 +75,11 @@ Concrete design for the ChainShield product, mapped onto the three sponsor APIs 
 | Mesh transport | Gensyn AXL local node @ `localhost:9002` | The AXL bridge is HTTP — Rust talks to it directly via `reqwest`. |
 | Remediation execution | KeeperHub REST (`https://app.keeperhub.com/api/...`) | No SDK needed; plain HTTP from `reqwest`. |
 | Onchain (Solidity) | Solidity 0.8.24+ via Foundry | `PolicyAnchor` and an optional `EmergencyVault`. OpenZeppelin for `Ownable`/`Pausable`. |
-| Browser UI | Static `public/index.html`, vanilla JS | No build step. Same UI regardless of which backend serves it. |
-| Containerization | Docker (`oven/bun` for the TS scaffold today; `rust:1-slim` later for Rust crates) | Multi-stage builds keep the runtime image lean. |
+| Containerization | Docker (`rust:1-slim`) | Multi-stage builds keep the runtime image lean. |
 
-The TypeScript scaffold under `src/` is retained as the conformance test suite: same JSON shapes, same verdict ladder, same UI. The Rust port targets byte-identical responses so existing `tests/` specs become a black-box reference.
+The hackathon TypeScript implementation under `src/` would become the conformance test suite for the Rust port: same JSON shapes, same verdict ladder, same UI. The Rust port targets byte-identical responses so the existing `tests/` specs become a black-box reference.
 
-## Module Map (Rust workspace, planned)
+## Module Map (planned — Rust workspace)
 
 ```
 chainshield/
@@ -43,7 +101,7 @@ chainshield/
 ├── infra/
 │   ├── axl-node/                  # build + run script for the local AXL node
 │   └── keeperhub-templates/       # JSON workflow definitions
-└── public/index.html              # browser UI (unchanged from Phase 1 scaffold)
+└── web/                           # Astro 6 frontend (unchanged from the TS submission)
 ```
 
 Empty crates are not pre-created. Each is added with code in the same commit.
@@ -54,7 +112,7 @@ How the crates collaborate at runtime, with the trait seams that keep external d
 
 ```mermaid
 flowchart TB
-    UI[Browser UI<br/>public/index.html]
+    UI[Astro frontend<br/>web/]
     API[risk-gate crate<br/>axum server]
     Eng[engine crate<br/>orchestrator]
     Core[core crate<br/>types + rules]
@@ -228,7 +286,6 @@ Identical to the TypeScript scaffold; the Rust server reimplements it byte-for-b
 
 ```
 GET  /health                           -> { "status": "ok" }
-GET  /                                 -> public/index.html
 POST /policies          body PolicyInput   -> Policy (201)
 PUT  /policies/:id      body PolicyInput   -> Policy
 GET  /policies/:id                          -> Policy (404 if missing)
@@ -247,7 +304,12 @@ Language-neutral algorithm. Implemented identically in both the TS scaffold and 
 2. **Quantitative caps** — `value > maxTransferEth` -> `BLOCK` (risk 90); 24h outflow projection -> `BLOCK` (risk 88).
 3. **Approval cap** — `selector == approve` and amount > `approvalCapByToken[token]` -> `BLOCK` (risk 92).
 4. **Allowlist match** — `to` not in `allowedDestinations` -> downgrade `ALLOW` to `REQUIRE_HUMAN_CONFIRMATION` (risk 60).
-5. **Simulation** — run in REVM; revert -> at least `REQUIRE_HUMAN_CONFIRMATION` (risk 70).
+5. **Simulation** — TS scaffold runs the heuristic ERC-20 calldata decoder in `src/simulator/heuristic.ts` (planned Rust port: `revm`); revert -> at least `REQUIRE_HUMAN_CONFIRMATION` (risk 70).
+
+Defensive escalations (TS scaffold, return `REQUIRE_HUMAN_CONFIRMATION` rather than 500-ing on bad input):
+
+- `invalidIntentValue` — `intent.value` does not parse as a decimal wei `BigInt`.
+- `invalidApprovalCap` — `policy.rules.approvalCapByToken[token]` does not parse as a decimal wei `BigInt` (the schema rejects this at the API boundary; the engine guard catches anything that bypassed validation).
 6. **LLM reflection** — call 0G Inference. Always call `processResponse` to get TEE attestation. The LLM may enrich `reasons[]` and bump `riskScore` but cannot override the verdict ladder.
 7. **Persist** — append Decision to the timeline.
 8. **Trigger playbook** — if `BLOCK` and `policy.remediation.onBlock` is non-empty, attempt each id in order until one succeeds.
@@ -304,7 +366,7 @@ flowchart TD
     PB -- no --> End
 ```
 
-The TypeScript scaffold today implements steps 1-4 and 7. Steps 5, 6, and 8 are added in the Rust port during Phase 2.
+The TypeScript scaffold today implements steps 1-5, 7, 8 and the 0G Storage half of the persistence layer (anchors policy + decision JSON onchain via `@0gfoundation/0g-storage-ts-sdk`). Step 6 (0G Inference reflection) is the remaining hackathon stretch, and the Rust port lifts everything into a single language during Phase 2.
 
 ## Sponsor Integration — Rust entry points
 
