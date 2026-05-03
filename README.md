@@ -144,6 +144,7 @@ docker compose up --build         # builds and runs on host port 8787
   - Off-allowlist destination → `REQUIRE_HUMAN_CONFIRMATION`, risk 60
 - **KeeperHub workflow execution** — workflow id `8c12ujo1ax7b93w21updd` fires on `BLOCK` and the run id round-trips into the decision record. Verifiable in the KeeperHub Runs tab.
 - **Soft-failure path** — when 0G upload errors or throws, the local write still succeeds, the warning is logged, the API returns the policy without the `anchor` field. Covered by `tests/zeroGStore.test.ts`.
+- **CI** — every PR and every push to `main` runs [`.github/workflows/ci.yml`](./.github/workflows/ci.yml): frozen-lockfile installs for both Bun workspaces, `tsc --noEmit`, `astro check`, `bun test`, Astro production build, and an emoji-bytes scan. Bun pinned via `.bun-version`.
 
 ---
 

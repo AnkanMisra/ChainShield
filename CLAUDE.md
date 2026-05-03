@@ -89,6 +89,22 @@ docker compose up --build  # containerised path
 - **There is no `public/index.html`.** The legacy single-file UI was removed in PR #6. Astro at `web/` is the only frontend.
 - **0G testnet wallet must be funded** before live anchor testing. Faucets: <https://faucet.0g.ai> and <https://cloud.google.com/application/web3/faucet/0g/galileo>. ~0.1 0G/wallet/day. Costs ~0.001 0G per anchor.
 
+## CI
+
+Every PR to `main` and every push to `main` runs [`.github/workflows/ci.yml`](./.github/workflows/ci.yml). The pipeline:
+
+1. Installs root deps with `bun install --frozen-lockfile`
+2. Installs web deps with `bun install --frozen-lockfile`
+3. `bun run typecheck:server` — `tsc --noEmit`
+4. `bun run typecheck:web` — `astro check`
+5. `bun test` — 90 specs
+6. `bun run build:web` — Astro production build
+7. Emoji scan — fails the build if any banned emoji byte sequence appears in tracked files
+
+If you change `package.json` or `web/package.json`, run `bun install` (no flag) locally first and commit the regenerated `bun.lock` / `web/bun.lock`. CI runs with the frozen lockfile.
+
+The Bun version is pinned in `.bun-version` (currently `1.3.13`) and read by `setup-bun@v2` so CI and local match.
+
 ## Pointers
 
 - [`AGENTS.md`](./AGENTS.md) — extended project conventions for AI agents

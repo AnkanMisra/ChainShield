@@ -1,0 +1,66 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Cancel an in-flight run if the same ref pushes again. Saves CI minutes
+# when you push fixups quickly during a PR.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: typecheck + test + build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+
+      - name: Install root dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install web dependencies
+        run: bun install --frozen-lockfile
+        working-directory: web
+
+      - name: Typecheck server (tsc --noEmit)
+        run: bun run typecheck:server
+
+      - name: Typecheck web (astro check)
+        run: bun run typecheck:web
+
+      - name: Run tests
+        run: bun test
+
+      - name: Build Astro frontend
+        run: bun run build:web
+
+      - name: Scan for emojis (project hard-rule)
+        # The project bans emojis everywhere — source, tests, docs, UI text.
+        # Fail the build if any common emoji byte sequences are present in
+        # tracked files. Excludes vendored / build artefacts.
+        run: |
+          set -e
+          if git grep -nE $'\xf0\x9f|\xe2\x9c\x85|\xe2\x8f\xb3|\xe2\x9d\x8c|\xe2\x9a\xa1' \
+            -- ':!web/dist' ':!dist' ':!web/.astro' ':!**/*.lock' \
+            > /tmp/emoji-hits.txt 2>&1
+          then
+            echo "::error::emoji bytes found in tracked files"
+            cat /tmp/emoji-hits.txt
+            exit 1
+          fi
+          echo "no emoji bytes found"

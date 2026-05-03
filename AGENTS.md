@@ -87,6 +87,7 @@ docker compose up --build  # builds and runs on host port 8787
 
 - Feature branches: `feature/<short-name>`.
 - Default base for PRs: `main`.
+- CI on every PR and push to `main` runs `.github/workflows/ci.yml`: frozen-lockfile installs (root + `web/`), `bun run typecheck`, `bun test`, `bun run build:web`, and an emoji-bytes scan. The Bun version is pinned in `.bun-version`.
 
 ## Decision-engine contract (do not break)
 
