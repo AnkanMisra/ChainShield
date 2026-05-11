@@ -32,7 +32,7 @@
     "@fastify/cors": "^11.2.0",
     "ethers": "^6.13.4",
     "fastify": "^5.1.0",
-    "zod": "^3.23.8"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/bun": "^1.1.14",
